@@ -1,5 +1,5 @@
 #%%
-from agents.agents import Agent
+from agents.agent import Agent
 from pathlib import Path
 from typing import List, Dict
 import os

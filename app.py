@@ -20,19 +20,20 @@ print(f"AGENTS_PROMPTS_DIR: {AGENTS_PROMPTS_DIR}")
 os.makedirs(SCENES_DIR, exist_ok=True)
 
 
-def run_code_generation(prompt,model:OpenAIModels,  dummy : bool = False) -> str:
+def run_code_generation(prompt,model:OpenAIModels,  dummy : bool = False, use_verify_agent:bool = False) -> str | None:
     if dummy: return "dummy.tsx", "success"
     print(f'coding....')
     coder_general_agent = CoderGeneralAgent(model)
-    code_v1, reasoning_v1 = coder_general_agent.generate_code(prompt)
+    code_generated, reasoning_v1 = coder_general_agent.generate_code(prompt)
     print(f'verifying....')
-    verify_update_agent = VerifyUpdateAgent(OpenAIModels.GPT_4O_MINI)
-    try : 
-        assert code_v1 is not None 
-    except:
-        print(f'code_v1 is None !')
-    code_v2, reasoning_v2 = verify_update_agent.verify_and_update(code_v1, reasoning_v1)
-    return code_v2
+    if use_verify_agent: 
+        verify_update_agent = VerifyUpdateAgent(OpenAIModels.GPT_4O_MINI)
+        try : 
+            assert code_generated is not None 
+        except:
+            print(f'code_v1 is None !')
+        code_generated, reasoning_v2 = verify_update_agent.verify_and_update(code_generated, reasoning_v1)
+    return code_generated
 
 
 @app.route('/write_code', methods=['POST'])
