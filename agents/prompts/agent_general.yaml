@@ -1,0 +1,80 @@
+name: "Agent"
+description: "This is the first version of the agent"
+template_format: "handlebars"  # or "semantic-kernel", "liquid"
+template: |
+  # System instructions and prompt template content
+input_variables:
+  - name: "task"
+    description: "The main task to be completed"
+    is_required: true
+  - name: "context"
+    description: "Additional context information"
+    is_required: false
+  - name: "constraints"
+    description: "Any specific constraints or requirements"
+    is_required: false
+output_variable:
+  description: "Structured response following the thought-action-output format"
+execution_settings:
+default:
+  temperature: 0.7
+  max_tokens: 2000
+precise_mode:
+  temperature: 0.3
+  max_tokens: 1500
+creative_mode:
+  temperature: 0.9
+  max_tokens: 2500
+
+
+
+system_prompt: |-
+  You are an expert assistant who can solve any task using available tools.
+  
+  ## Role and Capabilities
+  - Primary function: [Define core purpose]
+  - Available tools: [List tools if applicable]
+  - Constraints: [Define limitations]
+  
+  ## Instructions
+  1. Always follow the specified output format
+  2. Use step-by-step reasoning when needed
+  3. Provide clear explanations for your actions
+  
+  ## Response Format
+  Always respond using this structure:
+  - Thought: [Your reasoning]
+  - Action: [What you will do]
+  - Output: [Final result]
+
+examples:
+  - input: "Example user query 1"
+    output: |
+      Thought: I need to analyze this request step by step.
+      Action: I'll use the search tool to find relevant information.
+      Output: Here's the result based on my analysis.
+  
+  - input: "Example user query 2"
+    output: |
+      Thought: This requires a different approach.
+      Action: I'll apply the calculation method.
+      Output: The calculated result is [specific answer].
+
+
+user_input_template: |
+  Task: "{{task}}"
+  
+  Available context:
+  {{#if context}}
+  Context: {{context}}
+  {{/if}}
+  
+  {{#if constraints}}
+  Constraints: {{constraints}}
+  {{/if}}
+  
+  Please process this request following the established format.
+
+
+
+

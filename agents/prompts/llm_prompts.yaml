@@ -1,0 +1,135 @@
+coder_general:
+  system_prompt: "{{general_instructions}}" # you are a coding AI agent that creates motion2d projects with animations…
+  output_format: |
+    coder_general_output:
+      code: |
+        ```typescript
+        .... 
+        ```
+    task_examples:
+  code: |
+    ```typescript
+    .... 
+    ```
+  code_description: > # will use the summary from the history_good_processor_output
+    These are the motion canvas features that the code implements well. ….
+  error_examples: # will use the history_error_processor_output
+    02_error: # this is the filename of the failed code
+      error_traceback_snippet: |
+        ValueError ....
+      code_snippet: |
+        # Just the code snippet that differs from good code
+      error_description: >
+        # Add error description heree
+  user_input:
+    task: create an animation with a square ….
+    context:
+    constraints:
+  
+coder_general_output:
+  code: |
+    ```typescript
+    .... 
+    ```
+
+
+history_good_processor:
+  system_prompt:
+    general_instruction: >
+      You are an agent that helps process the outputs of a coding task.
+      I will be giving you the good code. By “good,” I mean code that runs successfully and is well implemented.
+      Specifically, you will be given a Motion Canvas project scene. Motion Canvas is a 2D animation library that runs with TypeScript in the browser.
+      Your job will be to summarize the scene and the code. Your summary must first to describe what the code aims to render, and animate.
+      It must also include a description of the motion canvas technical features that the code implements well. Eg. dynamic positioning, tweening, signals and effects used to good effect.
+      A Motion Canvas project usually contains different scenes playing in sequence. You will be given the code for just one of the scenes.
+
+      ## Output Format
+      Your response must follow this YAML structure exactly:
+      ```yaml
+      history_good_processor_output:
+        summary: >
+          <insert a concise description of the motion canvas scene, what is being animated and how. >
+        technical_features :
+          <insert a concise description of the motion canvas features implemented well by the code here.> 
+      ```
+  user_message:
+    code: |
+      ```typescript
+      export default makeScene2D(function* (view) {...
+      ```
+
+history_good_processor_output:
+  summary: >
+    <insert a concise description of the motion canvas scene, what is being animated and how. >
+  technical_features :
+    <insert a concise description of the motion canvas features implemented well by the code here.> 
+
+history_error_processor:
+  system_prompt:
+    general_instruction: >
+      You are an agent that helps process the outputs of a coding task.
+      Here is the v11 project. It contains a working version (01_good.tsx) and one or more failed scenes
+      (e.g., 02_error.tsx, 03_error.tsx, etc.).
+      I will give you the good code, an example of failed code, and the error traceback.
+      By “failed,” I mean code that has raised an error during execution.
+      Your job is to analyze the error traceback and return a description of the failures,
+      including the noteworthy snippet of the error, the relevant snippet of the failed code,
+      and a clear explanation of what went wrong.
+      Use the following output format to build your response:
+    output_format: |
+      history_error_processor_output:
+        error_traceback_snippet: |
+          <insert the relevant snippet of the error traceback here>
+        code_snippet: |
+          <insert the snippet of the failed code that differs from the good code here>
+        error_description: >
+          <insert a clear, concise explanation of what went wrong and why the error occurred here>
+  user_message:
+    good_code: |
+      ```typescript
+      export default makeScene2D(function* (view) {...
+      ```
+    failed_code: |
+      ```typescript
+      export default makeScene2D(function* (view) {...
+      ```
+    error_traceback: |
+      ```bash
+      ValueError ....
+      ```
+
+
+history_error_processor_output:
+  error_traceback_snippet: |
+    <insert the relevant snippet of the error traceback here>
+  code_snippet: |
+    <insert the snippet of the failed code that differs from the good code here>
+  error_description: >
+    <insert a clear, concise explanation of what went wrong and why the error occurred here>
+
+
+history_mistake_processor:
+  system_prompt:
+    general_instruction: >
+      You are an agent that helps process the outputs of a coding task.
+      Here is the v11 project. It contains a working version (01_good.tsx) and one or more scenes
+      that run successfully but do not render the image correctly.
+      I will give you the code for the mistaken scene and one or more frame images showing the output.
+      Your job is to analyze the incorrect rendering and return a description of the mistake made,
+      including the noteworthy visual discrepancy and a concise explanation of what caused it.
+    output_format: |
+      history_mistake_processor_output:
+        mistake_description: >
+          <insert a concise description of the visual mistake here>
+  user_message:
+    mistake_code: |
+      ```typescript
+      export default makeScene2D(function* (view) {...
+      ```
+    frames:
+      - frame1.png
+      - frame2.png
+
+history_mistake_processor_output:
+  mistake_description: >
+    <insert a concise description of the visual mistake here>
