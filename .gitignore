@@ -1,2 +1,6 @@
 __pycache__
 **/*.meta
+.env 
+logs
+uv.lock
+.vscode

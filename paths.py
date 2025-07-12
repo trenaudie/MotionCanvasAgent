@@ -3,6 +3,7 @@ from pathlib import Path
 
 AGENTS_PROMPTS_DIR = Path( 'agents')/ 'prompts'
 SCENES_DIR = Path( 'frontend' )/ 'src' / 'scenes'
+OUTPUT_FILE = SCENES_DIR / "example.tsx"
 
 def get_next_scene_filepath() -> Path:
     numbered_files = []

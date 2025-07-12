@@ -1,5 +1,13 @@
 {
     "python.autoComplete.extraPaths": [
         "${workspaceFolder}"
-    ]
+    ],
+    "jupyter.debugJustMyCode": false,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "jupyter.notebookFileRoot": "${workspaceFolder}",
+    "jupyter.logging.level": "error",
+    "jupyter.disableZMQSupport": false,
+    "python.envFile": "${workspaceFolder}/.env"
 }
