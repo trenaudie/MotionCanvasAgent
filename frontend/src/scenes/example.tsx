@@ -1,68 +1,34 @@
-
-import { makeScene2D, Circle, Rect, Txt, Line } from '@motion-canvas/2d';
-import { createRef, all, createComputed } from '@motion-canvas/core';
+import { Circle, makeScene2D } from '@motion-canvas/2d';
+import { createRef, all, waitFor, easeInExpo } from '@motion-canvas/core';
 
 export default makeScene2D(function* (view) {
   // Set the background color of the view
-  view.fill('#FFFFFF');
+  view.fill('#000000');
 
-  // Create refs for the Circle, Rect, and Line
-  const circle = createRef<Circle>();
-  const matrixRect = createRef<Rect>();
-  const line = createRef<Line>();
+  // Create refs for the two circles
+  const circle1 = createRef<Circle>();
+  const circle2 = createRef<Circle>();
 
-  // Create dynamic values for the circle's position
-  const circleX = createComputed(() => view.width() / 2);
-  const circleY = createComputed(() => view.height() / 2);
-
-  // Add the Circle to the view
+  // Add the circles to the view
   view.add(
-    <Circle
-      ref={circle}
-      x={circleX}
-      y={circleY}
-      radius={50}
-      fill={'#FF0000'}
-    />
+    <>
+      <Circle ref={circle1} x={() => -100} y={() => 0} width={100} height={100} fill={'red'} />
+      <Circle ref={circle2} x={() => 100} y={() => 0} width={100} height={100} fill={'red'} />
+    </>
   );
 
-  // Add a static LaTeX matrix as a Rect
-  view.add(
-    <Rect
-      ref={matrixRect}
-      x={circleX}
-      y={circleY + 100}
-      width={200}
-      height={100}
-      fill={'#FFFFFF'}
-      stroke={'#000000'}
-      lineWidth={2}
-    >
-      <Txt
-        text={`\\begin{bmatrix} 1 & 2 \\\ 3 & 4 \\end{bmatrix}`}
-        fontSize={20}
-        fill={'#000000'}
-        x={0}
-        y={0}
-      />
-    </Rect>
-  );
+  // Wait for a moment before starting the animation
+  yield* waitFor(0.5);
 
-  // Add a Line below the matrix
-  view.add(
-    <Line
-      ref={line}
-      x={circleX - 100}
-      y={circleY + 150}
-      points={[{ x: 0, y: 0 }, { x: 200, y: 0 }]}
-      stroke={'#000000'}
-      lineWidth={2}
-    />
-  );
-
-  // Animate the circle's position
+  // Animate the circles swapping positions
   yield* all(
-    circle().position(circleX(), circleY() - 50, 1),
-    circle().fill('#00FF00', 1)
+    circle1().position.x(100, 1, easeInExpo),
+    circle2().position.x(-100, 1, easeInExpo)
+  );
+
+  // Change the color of the circles to blue
+  yield* all(
+    circle1().fill('blue', 0.5),
+    circle2().fill('blue', 0.5)
   );
 });

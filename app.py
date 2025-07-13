@@ -13,6 +13,7 @@ from ai_utils.openai_api import OpenAIModels
 MODEL = OpenAIModels.O4_MINI
 app = Flask(__name__)
 CORS(app)  # <- Allow all origins by default
+# have a state memory 
 
 
 @app.route('/write_code', methods=['POST'])
@@ -23,8 +24,8 @@ def write_code_to_files():
     if not prompt:
         return jsonify({'error': 'Missing prompt'}), 400
 
-    code_generated = generate_code_from_query(prompt, output_file=OUTPUT_FILE)
-    return jsonify({'filename': str(OUTPUT_FILE.name)}), 200
+    code_generated = generate_code_from_query(prompt, output_file=OUTPUT_FILE,dummy_code= False)
+    return jsonify({'filename': str(OUTPUT_FILE.name)}),200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -83,6 +83,7 @@ def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = No
             system_prompt, llm, query, output_model=CodeOutput
         )
         code_generated = response_code.code
+        reasoning = response_code.reasoning
         LOG.info(f"Code generation successful!") 
     else:
         DUMMY_CODE_FILE = "/home/bits/MotionCanvasAgent/frontend/src/scenes2/example9_circle_cat.tsx"

@@ -95,6 +95,8 @@ graph_builder.edges = set()
 graph_builder.edges.add((START, "chatbot"))
 graph_builder.add_node("chatbot", human_chatbot)
 tool_node = ToolNode(tools=[human_assistance])
+from logger_config.logger import LOG
+
 graph_builder.add_conditional_edges(
     "chatbot",
     tools_condition,
