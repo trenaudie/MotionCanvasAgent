@@ -59,29 +59,18 @@ system_prompt: |-
 
 
   5. **Response Format**  
-     Always output **exactly** two sections—**Reasoning** and **Output**—using this YAML schema:
-     ```yaml
+     Always output **exactly** two sections—**reasoning** and **code generated**.
+     The reasoning must explain the concisely explain the thought process and approach taken to solve the problem.
+     The code generated must be a valid TypeScript file that can be pasted directly into a `.tsx` file, si without any Markdown tags or code fences.
+     Here is the json schema of the CodeOutput object to return:
+     
      {{output_template}}
-     ```
+
   6. **Examples** 
     {{examples}}
 
   7. **Additional context**
     {{context}}
-
-# output_template : |
-#   Reasoning: |
-#     # Your detailed thought process here, covering:
-#     - assets: which Motion Canvas components you'll create
-#     - initialization: refs and computed values
-#     - layout: parent/child structure
-#     - static properties: post-init settings
-#     - animations: timeline and tweens
-#   Output:
-#     code: |
-#       ```typescript
-#       // Your complete `.tsx` code here
-#       ```
 
 examples:
   - input: "create an animation with a circle that changes color and size over time."

@@ -8,7 +8,7 @@ def setup_logging(name=None, level=logging.INFO, logfile="log_debug"):
         return logger
     logger.setLevel(level)
     fmt = logging.Formatter(
-        "%(asctime)s %(levelname)-8s %(name)s [%(filename)s:%(lineno)d]: %(message)s",
+        "%(asctime)s %(levelname)-5s %(name)s [%(pathname)s:%(lineno)d]: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     sh = logging.StreamHandler(sys.stdout)

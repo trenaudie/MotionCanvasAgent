@@ -10,8 +10,9 @@ from langchain_core.output_parsers import StrOutputParser
 import os
 from pathlib import Path
 from agents.build_prompt import build_system_prompt_from_dirs_and_yaml
-from agents.output_models.code_output import CodeOutput
 from logging_config.logger import LOG
+from agents.output_models.code_output import CodeOutput
+from agents.output_models.graph_state import GraphState
 
 def generate_code(
     system_prompt: str,
@@ -58,6 +59,37 @@ def generate_code(
     response = chain.invoke(query)
 
     return response
+
+
+
+def generate_code_using_langgraph(
+    system_prompt: str,
+    llm: BaseChatModel,
+    query: str,
+    examples: List[BaseMessage] = [],
+    tools: Optional[List[Any]] = None,
+    output_model: Optional[Any] = None,
+):
+    code_gen_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            system_prompt),
+        ("placeholder", "{messages}"),
+    ]
+    )
+
+    expt_llm = "gpt-4o-mini"
+    code_gen_chain = code_gen_prompt | llm.with_structured_output(output_model)
+
+
+
+
+
+
+
+
+
 
 
 

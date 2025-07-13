@@ -27,6 +27,26 @@
 # %%
 import getpass
 import os
+from bs4 import BeautifulSoup as Soup
+from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
+from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import ChatPromptTemplate
+from logging_config.logger import LOG
+# lets try with google 
+from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pprint import pprint
+import json
+from typing import List
+from typing_extensions import TypedDict
+import os 
+from langchain_community.document_loaders.git import GitLoader
+
 
 
 def _set_env(var: str):
@@ -35,46 +55,64 @@ def _set_env(var: str):
 
 
 _set_env("OPENAI_API_KEY")
-# _set_env("GEMINI_API_KEY")
-# _set_env("ANTHROPIC_API_KEY")
-
-# %% [markdown]
-# <div class="admonition tip">
-#     <p class="admonition-title">Set up <a href="https://smith.langchain.com">LangSmith</a> for LangGraph development</p>
-#     <p style="padding-top: 5px;">
-#         Sign up for LangSmith to quickly spot issues and improve the performance of your LangGraph projects. LangSmith lets you use trace data to debug, test, and monitor your LLM apps built with LangGraph — read more about how to get started <a href="https://docs.smith.langchain.com">here</a>. 
-#     </p>
-# </div>
-
-# %% [markdown]
-# ## Docs
-# 
-# Load [LangChain Expression Language](https://python.langchain.com/docs/concepts/#langchain-expression-language-lcel) (LCEL) docs as an example.
-
-# %%
-from bs4 import BeautifulSoup as Soup
-from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
-
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
-
-# LCEL docs
+#%%
+# CONTEXT
 url = "https://python.langchain.com/docs/concepts/lcel/"
 loader = RecursiveUrlLoader(
     url=url, max_depth=20, extractor=lambda x: Soup(x, "html.parser").text
 )
 docs = loader.load()
-
-# Sort the list based on the URLs and get the text
 d_sorted = sorted(docs, key=lambda x: x.metadata["source"])
 d_reversed = list(reversed(d_sorted))
 concatenated_content = "\n\n\n --- \n\n\n".join(
     [doc.page_content for doc in d_reversed]
 )
+#%% 
+repo_path = "https://github.com/langchain-ai/langgraph/tree/main/docs/docs/tutorials"
+gitloader = GitLoader(repo_path="langgraph", file_filter=lambda x: "docs/docs" in x and (x.endswith(".ipynb") or x.endswith(".py")))
+docs = gitloader.load()
+docs
+#%%
+concatenated_content = ""
+for doc in docs:
+    print(doc.metadata["source"])
+    concatenated_content += doc.page_content + "\n\n\n --- \n\n\n"
+
+
+
+from ai_utils.count_tokens import count_openai_tokens
+print(f"Context length: {count_openai_tokens(concatenated_content, 'gpt-3.5-turbo')} tokens")
+#%%
+
+# Keep docs that are not chatbot-related, **or** are chatbot+rag
+docs_to_keep = [
+    doc for doc in docs 
+    if ("chatbot" in doc.metadata["source"] or "multi-agent-rag" in doc.metadata["source"] or "ref" in doc.metadata["source"]) 
+]
+doc_context_lengths = [
+    count_openai_tokens(doc.page_content, "gpt-3.5-turbo") for doc in docs_to_keep
+]
+doc_context_lengths
+# only keep the first 3 
+docs_to_keep = docs_to_keep[:3]
+print(f'number of docs to keep: {len(docs_to_keep)}')
+concatenated_content = ""
+for doc in docs_to_keep:
+    concatenated_content += doc.page_content + "\n\n\n --- \n\n\n"
+print(f"Context length: {count_openai_tokens(concatenated_content, 'gpt-3.5-turbo')} tokens")
+#%%
+
+
+
+#%% output model 
+class code(BaseModel):
+    """Schema for code solutions to questions about LCEL."""
+
+    prefix: str = Field(description="Description of the problem and approach")
+    imports: str = Field(description="Code block import statements")
+    code: str = Field(description="Code block not including import statements")
 
 ### OpenAI
-
 # Grader prompt
 code_gen_prompt = ChatPromptTemplate.from_messages(
     [
@@ -91,83 +129,44 @@ code_gen_prompt = ChatPromptTemplate.from_messages(
 )
 
 
-# Data model
-class code(BaseModel):
-    """Schema for code solutions to questions about LCEL."""
-
-    prefix: str = Field(description="Description of the problem and approach")
-    imports: str = Field(description="Code block import statements")
-    code: str = Field(description="Code block not including import statements")
-
-
 expt_llm = "gpt-4o-mini"
 llm = ChatOpenAI(temperature=0, model=expt_llm)
 code_gen_chain = code_gen_prompt | llm.with_structured_output(code)
 question = "How do I build a RAG chain in LCEL?"
-# solution = code_gen_chain.invoke(
-#     {"context": concatenated_content, "messages": [("user", question)]}
-# )
 
 
 
 # %%
-from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
-from logging_config.logger import LOG
-# lets try with google 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
+# GEMINI
+def build_code_gen_chain_gemini():
+    """
+    Build a code generation chain for Gemini.
+    """
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "auth_keys/datadog-feat-req-clustering-aeb47e2e72ee.json"
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.prompts import ChatPromptTemplate
 
-import os 
-# Set the environment variable for Google Cloud authentication
-# Make sure your service account key file is in the langchain directory
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "auth_keys/datadog-feat-req-clustering-aeb47e2e72ee.json"
+    # Set up the prompt template
+    code_gen_prompt_gemini = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """You are a coding assistant with expertise in LCEL, LangChain expression language. \n 
+        Here is the LCEL documentation:  \n ------- \n  {context} \n ------- \n Answer the user 
+        question based on the above provided documentation. Ensure any code you provide can be executed \n 
+        with all required imports and variables defined. Structure your answer: 1) a prefix describing the code solution, 2) the imports, 3) the functioning code block. \n
+        Invoke the code tool to structure the output correctly. </instructions> \n Here is the user question:""",
+            ),
+            ("placeholder", "{messages}"),
+        ]
+    )
 
-#%% 
-# Prompt to enforce tool use
-code_gen_prompt_gemini = ChatPromptTemplate.from_messages(
-    [  
-        (
-            "system",
-            """<instructions> You are a coding assistant with expertise in LCEL, LangChain expression language. \n 
-    Here is the LCEL documentation:  \n ------- \n  {context} \n ------- \n Answer the user  question based on the \n 
-    above provided documentation. Ensure any code you provide can be executed with all required imports and variables \n
-    defined. Structure your answer: 1) a prefix describing the code solution, 2) the imports, 3) the functioning code block. \n
-    Invoke the code tool to structure the output correctly. </instructions> \n Here is the user question:""",
-        ),
-        ("placeholder", "{messages}"),
-    ]
-)
+    GOOGLE_MODEL = "gemini-2.5-flash-lite-preview-06-17"
+    llm = ChatGoogleGenerativeAI(model=GOOGLE_MODEL)
+    return code_gen_prompt_gemini | llm.with_structured_output(code, include_raw=True)
 
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-GOOGLE_MODEL = "gemini-2.5-flash-lite-preview-06-17"
-
-llm = ChatGoogleGenerativeAI(model = GOOGLE_MODEL)
-llm_with_prompt = code_gen_prompt_gemini | llm.with_structured_output(code, include_raw=True)
-
-question = "How do I build a RAG chain in LCEL?"
-solution = llm_with_prompt.invoke(
-    {"context": concatenated_content, "messages": [("user", question)]}
-)  
-solution
-
-# %% [markdown]
-from pprint import pprint
-import json
-pprint(json.loads(solution['raw'].additional_kwargs['function_call']['arguments']), indent =4 , compact = True)
-
-code_generated = json.loads(solution['raw'].additional_kwargs['function_call']['arguments'])['code']
-print(code_generated)
-
-#%% 
-solution['parsed'].__class__
-solution['parsing_error']
-raise ValueError
 # %%
-from typing import List
-from typing_extensions import TypedDict
-
 
 class GraphState(TypedDict):
     """
@@ -197,8 +196,10 @@ class GraphState(TypedDict):
 max_iterations = 3
 # Reflect
 # flag = 'reflect'
-flag = "do not reflect"
+flag = "reflect"
 
+
+#%% 
 ### Nodes
 
 
@@ -213,7 +214,7 @@ def generate(state: GraphState):
         state (dict): New key added to state, generation
     """
 
-    print("---GENERATING CODE SOLUTION---")
+    LOG.info("---GENERATING CODE SOLUTION---")
 
     # State
     messages = state["messages"]
@@ -256,7 +257,7 @@ def code_check(state: GraphState):
         state (dict): New key added to state, error
     """
 
-    print("---CHECKING CODE---")
+    LOG.info("---CHECKING CODE---")
 
     # State
     messages = state["messages"]
@@ -269,9 +270,10 @@ def code_check(state: GraphState):
 
     # Check imports
     try:
+        LOG.info("Running code import check")
         exec(imports)
     except Exception as e:
-        print("---CODE IMPORT CHECK: FAILED---")
+        LOG.info("---CODE IMPORT CHECK: FAILED---")
         error_message = [("user", f"Your solution failed the import test: {e}")]
         messages += error_message
         return {
@@ -283,9 +285,10 @@ def code_check(state: GraphState):
 
     # Check execution
     try:
+        LOG.info("Running code block check")
         exec(imports + "\n" + code)
     except Exception as e:
-        print("---CODE BLOCK CHECK: FAILED---")
+        LOG.info("---CODE BLOCK CHECK: FAILED---")
         error_message = [("user", f"Your solution failed the code execution test: {e}")]
         messages += error_message
         return {
@@ -316,7 +319,7 @@ def reflect(state: GraphState):
         state (dict): New key added to state, generation
     """
 
-    print("---GENERATING CODE SOLUTION---")
+    print("---REFLECTING CODE SOLUTION---")
 
     # State
     messages = state["messages"]
@@ -383,13 +386,52 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("reflect", "generate")
 app = workflow.compile()
+#%% 
+
 
 # %%
 question = "How can I directly pass a string to a runnable and use it to construct the input needed for my prompt?"
 solution = app.invoke({"messages": [("user", question)], "iterations": 0, "error": ""})
-
+solution
 # %%
-solution["generation"]
+print(solution["generation"].code)
+
+#%% 
+solution
+solution['messages']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # %% [markdown]
 # ## Eval

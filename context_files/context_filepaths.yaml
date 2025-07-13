@@ -1,0 +1,6 @@
+files:
+  - filepath: frontend/src/scenes1/00_dummy.tsx
+    description : "Simple scene of a central circle enlarging and shrinking"
+  - filepath: frontend/src/scenes1/07_scene.tsx
+    description : "Scene of an infinitely bouncing circle"
+  
