@@ -73,7 +73,7 @@ def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = No
     """
 
     if not dummy_code:
-        context_dirs = [Path("frontend/src/scenes")]
+        context_dirs = [Path("frontend/src/scenes"), Path("frontend/src/scenes2")]
         yaml_path = Path("agents/prompts/coder_general_01.yaml")
         system_prompt = build_system_prompt_from_dirs_and_yaml(
             context_dirs, yaml_path, CodeOutput
