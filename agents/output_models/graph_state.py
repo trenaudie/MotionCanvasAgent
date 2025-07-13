@@ -11,6 +11,6 @@ class GraphState(TypedDict):
     """
 
     error: str
-    messages: List
-    generation: str
-    iterations: int
+    messages: List[tuple[str, str]]  # List of tuples with role and content
+    code_generated: str
+    iterations: int 

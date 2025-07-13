@@ -25,7 +25,11 @@ def write_code_to_files():
         return jsonify({'error': 'Missing prompt'}), 400
 
     code_generated = generate_code_from_query(prompt, output_file=OUTPUT_FILE,dummy_code= False)
+
     return jsonify({'filename': str(OUTPUT_FILE.name)}),200
+
+# listen to frontend for response 
+# if error call write_code_to_files again with the error message
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

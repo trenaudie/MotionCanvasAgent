@@ -13,6 +13,10 @@ from agents.build_prompt import build_system_prompt_from_dirs_and_yaml
 from logging_config.logger import LOG
 from agents.output_models.code_output import CodeOutput
 from agents.output_models.graph_state import GraphState
+from langgraph.graph import END,StateGraph, START
+from langgraph.checkpoint.memory import MemorySaver
+import uuid
+from typing import Callable, Optional
 
 def generate_code(
     system_prompt: str,
@@ -60,6 +64,16 @@ def generate_code(
 
     return response
 
+def build_graph(generate_handler : Callable, thread: Optional[dict] = {"configurable": {"thread_id": uuid.uuid4()}} ):
+    workflow = StateGraph(GraphState)
+    # Define the nodes
+    workflow.add_node("generate", generate_handler)  # generation solution
+    workflow.add_edge(START, "generate")
+    workflow.add_edge("generate", END)
+
+    memory = MemorySaver()
+    graph= workflow.compile(checkpointer=memory)
+    return graph.with_config(thread=thread), memory
 
 
 def generate_code_using_langgraph(
@@ -70,27 +84,64 @@ def generate_code_using_langgraph(
     tools: Optional[List[Any]] = None,
     output_model: Optional[Any] = None,
 ):
-    code_gen_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            system_prompt),
-        ("placeholder", "{messages}"),
-    ]
+    # Create few-shot prompt template
+    few_shot_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            *examples,
+            ("human", f"{query}"),
+        ],
+        template_format="jinja2",
     )
 
-    expt_llm = "gpt-4o-mini"
-    code_gen_chain = code_gen_prompt | llm.with_structured_output(output_model)
+    code_gen_chain = few_shot_prompt | llm.with_structured_output(output_model)
 
+    def generate_handler(state: GraphState, thread:dict):
+        """
+        Generate a code solution
 
+        Args:
+            state (dict): The current graph state
 
+        Returns:
+            state (dict): New key added to state, generation
+        """
 
+        LOG.info("---GENERATING CODE SOLUTION---")
 
+        # State
+        messages = state["messages"]
+        iterations = state["iterations"]
+        error = state["error"]
 
+        # We have been routed back to generation with an error
+        if error == "yes":
+            messages += [
+                (
+                    "user",
+                    "Now, try again. Invoke the code tool to structure the output with a prefix, imports, and code block:",
+                )
+            ]
 
+        # Solution
+        code_solution = code_gen_chain.invoke(
+            { "messages": messages}, config=thread 
+        )
+        LOG.info(f"Code generation successful! Output is:\n\n {code_solution}\n\n")
+        messages += [
+            (
+                "assistant",
+                f"Reasoning: {code_solution.reasoning}\n Code: {code_solution.code_generated}",
+            )
+        ]
 
-
-
+        # Increment
+        iterations = iterations + 1
+        return {"code_generated": code_solution, "messages": messages, "iterations": iterations}
+    thread = {"configurable": {"thread_id": uuid.uuid4()}}
+    graph, memory = build_graph(lambda state: generate_handler(state, thread=thread))
+    solution = graph.invoke({"messages": [("user", query)], "iterations": 0, "error": ""}, config=thread)
+    return solution
 
 
 def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False) -> str:
@@ -111,10 +162,10 @@ def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = No
             context_dirs, yaml_path, CodeOutput
         )
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        response_code = generate_code(
+        response_code = generate_code_using_langgraph(
             system_prompt, llm, query, output_model=CodeOutput
         )
-        code_generated = response_code.code
+        code_generated = response_code.code_generated
         reasoning = response_code.reasoning
         LOG.info(f"Code generation successful!") 
     else:
@@ -150,8 +201,9 @@ if __name__ == "__main__":
     print(system_prompt)
 
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    # you can add tools here, which will then be shown as examples in the prompt
-    response = generate_code(system_prompt, llm, "hello world what are you here for?")
-    print(response)
 
+    # you can add tools here, which will then be shown as examples in the prompt
+    response = generate_code_using_langgraph(system_prompt, llm, "can you create a simple hello world faded in animation?", output_model = CodeOutput)
+    print(response)
+# %%
 # %%
