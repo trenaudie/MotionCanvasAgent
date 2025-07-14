@@ -1,31 +1,65 @@
-import { makeScene2D } from '@motion-canvas/2d';
-import { createRef, all, waitFor, tween } from '@motion-canvas/core';
-import { Txt } from '@motion-canvas/2d';
+import { Circle, Rect, Triangle, makeScene2D, Txt } from '@motion-canvas/2d';
+import { all, createRef, createSignal, waitFor } from '@motion-canvas/core';
 
 export default makeScene2D(function* (view) {
-  // Create a reference for the text
-  view.fill('#000000'); // Set background color
-  const helloText = createRef<Txt>();
+  // Set the background color of the view
+  view.fill('#000000');
 
-  // Add the text to the view
+  // Create refs for the Circle, Triangle, and Rect
+  const circle = createRef<Circle>();
+  const triangle = createRef<Triangle>();
+  const matrix = createRef<Rect>();
+
+  // Add a Circle
+  view.add(
+    <Circle
+      ref={circle}
+      x={() => view.width() / 4}
+      y={() => 0}
+      width={() => 100}
+      height={() => 100}
+      fill={'#FF0000'}
+    />
+  );
+
+  // Add a Triangle
+  view.add(
+    <Triangle
+      ref={triangle}
+      x={() => -view.width() / 4}
+      y={() => 0}
+      size={100}
+      fill={'#00FF00'}
+    />
+  );
+
+  // Add a static LaTeX matrix
   view.add(
     <Txt
-      ref={helloText}
-      text={'HELLO'}
-      fontSize={60}
-      fill={'white'}
-      opacity={0} // Start invisible
+      x={() => 0}
+      y={() => -view.height() / 4}
+      text={'\begin{bmatrix} 1 & 2 \\\ 3 & 4 \end{bmatrix}'}
+      fontSize={40}
+      fill={'#FFFFFF'}
+    />
+  );
+
+  // Add a line
+  view.add(
+    <Rect
+      x={() => -view.width() / 2}
+      y={() => 0}
+      width={() => view.width()}
+      height={2}
+      fill={'#FFFFFF'}
     />
   );
 
   // Wait for a moment before starting the animation
-  yield* waitFor(0.5);
+  yield* waitFor(1);
 
-  // Animate the text to appear and rotate
-  yield* all(
-    helloText().opacity(1, 1), // Fade in over 1 second
-    tween(2, (value) => {
-      helloText().rotation(value * Math.PI * 2); // Rotate full circle
-    })
-  );
+  // Animate the circle moving to the right
+  yield* circle().position.x(view.width() / 2, 2);
+  // Animate the triangle moving to the left
+  yield* triangle().position.x(-view.width() / 2, 2);
 });
