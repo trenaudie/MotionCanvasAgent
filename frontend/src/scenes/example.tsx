@@ -1,34 +1,27 @@
-import { Circle, makeScene2D } from '@motion-canvas/2d';
-import { createRef, all, waitFor, easeInExpo } from '@motion-canvas/core';
+import { makeScene2D } from '@motion-canvas/2d';
+import { createRef, all, waitFor, createSignal } from '@motion-canvas/core';
+import { Txt } from '@motion-canvas/2d';
 
 export default makeScene2D(function* (view) {
-  // Set the background color of the view
-  view.fill('#000000');
+  // Create a reference for the text
+  const helloWorldText = createRef<Txt>();
 
-  // Create refs for the two circles
-  const circle1 = createRef<Circle>();
-  const circle2 = createRef<Circle>();
-
-  // Add the circles to the view
+  // Add the text to the view
   view.add(
-    <>
-      <Circle ref={circle1} x={() => -100} y={() => 0} width={100} height={100} fill={'red'} />
-      <Circle ref={circle2} x={() => 100} y={() => 0} width={100} height={100} fill={'red'} />
-    </>
+    <Txt
+      ref={helloWorldText}
+      text={'Hello, World!'}
+      fontSize={60}
+      fill={'white'}
+      opacity={0} // Start invisible
+    />
   );
 
   // Wait for a moment before starting the animation
   yield* waitFor(0.5);
 
-  // Animate the circles swapping positions
+  // Animate the text to appear
   yield* all(
-    circle1().position.x(100, 1, easeInExpo),
-    circle2().position.x(-100, 1, easeInExpo)
-  );
-
-  // Change the color of the circles to blue
-  yield* all(
-    circle1().fill('blue', 0.5),
-    circle2().fill('blue', 0.5)
+    helloWorldText().opacity(1, 1) // Fade in over 1 second
   );
 });

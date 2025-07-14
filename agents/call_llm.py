@@ -13,10 +13,11 @@ from agents.build_prompt import build_system_prompt_from_dirs_and_yaml
 from logging_config.logger import LOG
 from agents.output_models.code_output import CodeOutput
 from agents.output_models.graph_state import GraphState
-from langgraph.graph import END,StateGraph, START
+from langgraph.graph import END, StateGraph, START
 from langgraph.checkpoint.memory import MemorySaver
 import uuid
 from typing import Callable, Optional
+
 
 def generate_code(
     system_prompt: str,
@@ -43,7 +44,7 @@ def generate_code(
     if tools:
         llm_final = llm.bind_tools(tools)
     if output_model:
-        llm_final = llm.with_structured_output(output_model, include_raw = False)
+        llm_final = llm.with_structured_output(output_model, include_raw=False)
     if not tools and not output_model:
         llm_final = llm
 
@@ -64,7 +65,11 @@ def generate_code(
 
     return response
 
-def build_graph(generate_handler : Callable, thread: Optional[dict] = {"configurable": {"thread_id": uuid.uuid4()}} ):
+
+def build_graph(
+    generate_handler: Callable,
+    thread: Optional[dict] = {"configurable": {"thread_id": uuid.uuid4()}},
+):
     workflow = StateGraph(GraphState)
     # Define the nodes
     workflow.add_node("generate", generate_handler)  # generation solution
@@ -72,7 +77,7 @@ def build_graph(generate_handler : Callable, thread: Optional[dict] = {"configur
     workflow.add_edge("generate", END)
 
     memory = MemorySaver()
-    graph= workflow.compile(checkpointer=memory)
+    graph = workflow.compile(checkpointer=memory)
     return graph.with_config(thread=thread), memory
 
 
@@ -96,7 +101,7 @@ def generate_code_using_langgraph(
 
     code_gen_chain = few_shot_prompt | llm.with_structured_output(output_model)
 
-    def generate_handler(state: GraphState, thread:dict):
+    def generate_handler(state: GraphState, thread: dict):
         """
         Generate a code solution
 
@@ -124,9 +129,7 @@ def generate_code_using_langgraph(
             ]
 
         # Solution
-        code_solution = code_gen_chain.invoke(
-            { "messages": messages}, config=thread 
-        )
+        code_solution = code_gen_chain.invoke({"messages": messages}, config=thread)
         LOG.info(f"Code generation successful! Output is:\n\n {code_solution}\n\n")
         messages += [
             (
@@ -137,16 +140,25 @@ def generate_code_using_langgraph(
 
         # Increment
         iterations = iterations + 1
-        return {"code_generated": code_solution, "messages": messages, "iterations": iterations}
+        return {
+            "code_generated": code_solution,
+            "messages": messages,
+            "iterations": iterations,
+        }
+
     thread = {"configurable": {"thread_id": uuid.uuid4()}}
     graph, memory = build_graph(lambda state: generate_handler(state, thread=thread))
-    solution = graph.invoke({"messages": [("user", query)], "iterations": 0, "error": ""}, config=thread)
+    solution = graph.invoke(
+        {"messages": [("user", query)], "iterations": 0, "error": ""}, config=thread
+    )
     return solution
 
 
-def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False) -> str:
+def generate_code_from_query(
+    query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False
+) -> str:
     """
-    This function performs a code generation from a given conversation. 
+    This function performs a code generation from a given conversation.
     If dummy_code is true, it will just copy the code from the DUMMY_CODE_FILE into the output_file.
 
     :param chat_messages: The conversation messages (str).
@@ -165,11 +177,14 @@ def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = No
         response_code = generate_code_using_langgraph(
             system_prompt, llm, query, output_model=CodeOutput
         )
-        code_generated = response_code.code_generated
-        reasoning = response_code.reasoning
-        LOG.info(f"Code generation successful!") 
+        LOG.info(f"Response code: {response_code}")
+        code_generated = response_code["code_generated"]
+        code_generated = code_generated.code_generated
+        LOG.info(f"Code generation successful!")
     else:
-        DUMMY_CODE_FILE = "/home/bits/MotionCanvasAgent/frontend/src/scenes2/example9_circle_cat.tsx"
+        DUMMY_CODE_FILE = (
+            "/home/bits/MotionCanvasAgent/frontend/src/scenes2/example9_circle_cat.tsx"
+        )
         code_generated = Path(DUMMY_CODE_FILE).read_text()
 
     # Ensure the output file path exists, create it if not
@@ -178,13 +193,12 @@ def generate_code_from_query(query: str, output_file: Optional[os.PathLike] = No
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the generated code to the output file
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(code_generated)
-    
+
         LOG.info(f"Output written to {output_file}")
 
     return code_generated
-
 
 
 # %%
@@ -203,7 +217,12 @@ if __name__ == "__main__":
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     # you can add tools here, which will then be shown as examples in the prompt
-    response = generate_code_using_langgraph(system_prompt, llm, "can you create a simple hello world faded in animation?", output_model = CodeOutput)
+    response = generate_code_using_langgraph(
+        system_prompt,
+        llm,
+        "can you create a simple hello world faded in animation?",
+        output_model=CodeOutput,
+    )
     print(response)
 # %%
 # %%
