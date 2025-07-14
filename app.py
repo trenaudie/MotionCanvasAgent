@@ -10,12 +10,16 @@ load_dotenv()  # Load environment variables from .env
 from paths import OUTPUT_FILE
 from agents.call_llm import generate_code_from_query
 from ai_utils.openai_api import OpenAIModels
+
+
+
 MODEL = OpenAIModels.O4_MINI
 app = Flask(__name__)
 CORS(app)  # <- Allow all origins by default
 # have a state memory 
 
-
+thread= {"configurable": {"thread_id": uuid.uuid4()}}
+memory
 @app.route('/write_code', methods=['POST'])
 def write_code_to_files():
     print(f'POST - WRITING CODE TO FILES')

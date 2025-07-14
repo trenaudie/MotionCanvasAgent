@@ -17,7 +17,7 @@ from langgraph.graph import END, StateGraph, START
 from langgraph.checkpoint.memory import MemorySaver
 import uuid
 from typing import Callable, Optional
-
+from agents.state_tracker import StateTracker
 
 def generate_code(
     system_prompt: str,
@@ -69,16 +69,17 @@ def generate_code(
 def build_graph(
     generate_handler: Callable,
     thread: Optional[dict] = {"configurable": {"thread_id": uuid.uuid4()}},
+    memory: Optional[MemorySaver] = None,
 ):
     workflow = StateGraph(GraphState)
     # Define the nodes
     workflow.add_node("generate", generate_handler)  # generation solution
     workflow.add_edge(START, "generate")
     workflow.add_edge("generate", END)
-
-    memory = MemorySaver()
+    if memory is None:
+        memory = MemorySaver()
     graph = workflow.compile(checkpointer=memory)
-    return graph.with_config(thread=thread), memory
+    return graph.with_config(thread=thread)
 
 
 def generate_code_using_langgraph(
@@ -88,6 +89,8 @@ def generate_code_using_langgraph(
     examples: List[BaseMessage] = [],
     tools: Optional[List[Any]] = None,
     output_model: Optional[Any] = None,
+    memory: Optional[MemorySaver] = None,
+    thread: Optional[dict] = None
 ):
     # Create few-shot prompt template
     few_shot_prompt = ChatPromptTemplate.from_messages(
@@ -101,7 +104,7 @@ def generate_code_using_langgraph(
 
     code_gen_chain = few_shot_prompt | llm.with_structured_output(output_model)
 
-    def generate_handler(state: GraphState, thread: dict):
+    def generate_handler(state: GraphState, thread: dict, memory: Optional[MemorySaver] = None) -> Dict[str, Any]:
         """
         Generate a code solution
 
@@ -146,16 +149,15 @@ def generate_code_using_langgraph(
             "iterations": iterations,
         }
 
-    thread = {"configurable": {"thread_id": uuid.uuid4()}}
-    graph, memory = build_graph(lambda state: generate_handler(state, thread=thread))
-    solution = graph.invoke(
+    graph = build_graph(lambda state: generate_handler(state, thread=thread, memory=memory), thread=thread)
+    response = graph.invoke(
         {"messages": [("user", query)], "iterations": 0, "error": ""}, config=thread
     )
-    return solution
+    return response
 
 
 def generate_code_from_query(
-    query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False
+    query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False, memory: Optional[MemorySaver] = None, thread: Optional[dict] =  None
 ) -> str:
     """
     This function performs a code generation from a given conversation.
@@ -174,11 +176,11 @@ def generate_code_from_query(
             context_dirs, yaml_path, CodeOutput
         )
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        response_code = generate_code_using_langgraph(
-            system_prompt, llm, query, output_model=CodeOutput
+        response, memory = generate_code_using_langgraph(
+            system_prompt, llm, query, output_model=CodeOutput, memory=memory, thread=thread
         )
-        LOG.info(f"Response code: {response_code}")
-        code_generated = response_code["code_generated"]
+        LOG.info(f"Response code: {response}")
+        code_generated = response["code_generated"]
         code_generated = code_generated.code_generated
         LOG.info(f"Code generation successful!")
     else:
