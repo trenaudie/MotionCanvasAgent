@@ -1,65 +1,32 @@
-import { Circle, Rect, Triangle, makeScene2D, Txt } from '@motion-canvas/2d';
-import { all, createRef, createSignal, waitFor } from '@motion-canvas/core';
+import { makeScene2D } from '@motion-canvas/2d';
+import { Circle, Node } from '@motion-canvas/2d';
+import { createRef, all, waitFor, easeInOutExpo } from '@motion-canvas/core';
 
 export default makeScene2D(function* (view) {
   // Set the background color of the view
   view.fill('#000000');
 
-  // Create refs for the Circle, Triangle, and Rect
-  const circle = createRef<Circle>();
-  const triangle = createRef<Triangle>();
-  const matrix = createRef<Rect>();
+  // Create a reference for the circle
+  const movingCircle = createRef<Circle>();
 
-  // Add a Circle
+  // Add the circle to the view
   view.add(
     <Circle
-      ref={circle}
-      x={() => view.width() / 4}
-      y={() => 0}
-      width={() => 100}
-      height={() => 100}
-      fill={'#FF0000'}
-    />
-  );
-
-  // Add a Triangle
-  view.add(
-    <Triangle
-      ref={triangle}
-      x={() => -view.width() / 4}
-      y={() => 0}
-      size={100}
-      fill={'#00FF00'}
-    />
-  );
-
-  // Add a static LaTeX matrix
-  view.add(
-    <Txt
+      ref={movingCircle}
+      size={50}
+      fill={'#ff0000'}
       x={() => 0}
-      y={() => -view.height() / 4}
-      text={'\begin{bmatrix} 1 & 2 \\\ 3 & 4 \end{bmatrix}'}
-      fontSize={40}
-      fill={'#FFFFFF'}
-    />
-  );
-
-  // Add a line
-  view.add(
-    <Rect
-      x={() => -view.width() / 2}
       y={() => 0}
-      width={() => view.width()}
-      height={2}
-      fill={'#FFFFFF'}
     />
   );
 
-  // Wait for a moment before starting the animation
-  yield* waitFor(1);
-
-  // Animate the circle moving to the right
-  yield* circle().position.x(view.width() / 2, 2);
-  // Animate the triangle moving to the left
-  yield* triangle().position.x(-view.width() / 2, 2);
+  // Animation loop to move the circle back and forth
+  while (true) {
+    // Move to the right
+    yield* movingCircle().position.x(200, 1, easeInOutExpo);
+    yield* waitFor(0.5);
+    // Move to the left
+    yield* movingCircle().position.x(-200, 1, easeInOutExpo);
+    yield* waitFor(0.5);
+  }
 });

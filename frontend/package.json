@@ -16,6 +16,7 @@
   "devDependencies": {
     "@motion-canvas/ui": "^3.17.2",
     "@motion-canvas/vite-plugin": "^3.17.2",
+    "@types/node": "^24.0.13",
     "typescript": "^5.2.2",
     "vite": "^4.0.0"
   }
