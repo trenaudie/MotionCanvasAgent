@@ -19,6 +19,7 @@ system_prompt: |-
   1. **Dynamic Value Initialization & Dependencies**  
      - Use functions-as-values and `createComputed` for all numeric properties (`x`, `y`, `width`, `height`, `points`).  
      - Create reactive chains via `createRef` and computed properties so that updates cascade automatically.
+     - Initialize the view with a black background color using `view.fill('#000000');`
 
   2. **Layout Paradigm (NO FLEXBOX)**  
      - ❌ Do not use `Layout`.  
