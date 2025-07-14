@@ -148,11 +148,8 @@ export function ChatOverlay() {
     };
   }, []);
 
-  const sendMessage = async () => {
-    if (!currentMessage.trim()) return;
-
-    const messageText = currentMessage.trim();
-
+  // Extract message sending logic into reusable function
+  const sendMessageToBackend = async (messageText: string, includeContext: boolean = true) => {
     // Add user message to chat
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -162,9 +159,6 @@ export function ChatOverlay() {
       type: 'user'
     };
     setMessages(prev => [...prev, userMessage]);
-
-    // Clear input
-    setCurrentMessage('');
 
     // Add status message
     const statusMessage: Message = {
@@ -176,31 +170,27 @@ export function ChatOverlay() {
     };
     setMessages(prev => [...prev, statusMessage]);
 
-    // Fetch the latest example code
-    const contextCode = await fetchExampleCode();
+    // Fetch the latest example code if context is needed
+    const contextCode = includeContext ? await fetchExampleCode() : exampleCode;
 
     // Determine backend at runtime
     let backend = '';
-    try {
-      const envResponse = await fetch('/env.json');
-      if (envResponse.ok) {
-        const envData = await envResponse.json();
-        if (envData.BACKEND) backend = envData.BACKEND;
-      }
-    } catch (e) {
-      // fallback to default
+    if (import.meta.env.BACKEND) {
+      backend = import.meta.env.BACKEND;
+    } else {
+      backend = 'FLASK'; // Default to Flask if not set
     }
 
     // Prepare context message
     let contextualMessage = '';
     
     // Add current code context
-    if (contextCode) {
+    if (includeContext && contextCode) {
       contextualMessage += `Context - Current example.tsx content:\n\`\`\`typescript\n${contextCode}\n\`\`\`\n\n`;
     }
     
-    // Add recent console errors if any
-    if (consoleErrors.length > 0) {
+    // Add recent console errors if any and context is needed
+    if (includeContext && consoleErrors.length > 0) {
       contextualMessage += `Recent Console Errors/Warnings:\n\`\`\`\n${consoleErrors.join('\n')}\n\`\`\`\n\n`;
     }
     
@@ -208,7 +198,7 @@ export function ChatOverlay() {
     contextualMessage += `User request: ${messageText}`;
     
     // If no context, just use the message
-    if (!contextCode && consoleErrors.length === 0) {
+    if (!includeContext || (!contextCode && consoleErrors.length === 0)) {
       contextualMessage = messageText;
     }
 
@@ -361,6 +351,38 @@ export function ChatOverlay() {
         setMessages(prev => [...prev, errorMessage]);
       }
     }
+  };
+
+  const sendMessage = async () => {
+    if (!currentMessage.trim()) return;
+    
+    const messageText = currentMessage.trim();
+    setCurrentMessage(''); // Clear input immediately
+    
+    await sendMessageToBackend(messageText);
+  };
+
+  const resolveErrors = async () => {
+    if (consoleErrors.length === 0) return;
+
+    // Compose an error resolution request message
+    const errorResolutionMessage = `Please fix the following errors in my Motion Canvas code:
+
+Errors encountered:
+${consoleErrors.join('\n')}
+
+Current code in example.tsx:
+\`\`\`typescript
+${exampleCode}
+\`\`\`
+
+Please provide the corrected code that resolves these errors.`;
+
+    // Clear the console errors since we're addressing them
+    setConsoleErrors([]);
+
+    // Send the error resolution request
+    await sendMessageToBackend(errorResolutionMessage, false); // Don't include context again since we're manually providing it
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -535,30 +557,21 @@ ${defaultCode}
           </div>
           {consoleErrors.length > 0 && (
             <button
-              onClick={() => {
-                const errorMessage: Message = {
-                  id: Date.now().toString(),
-                  username: 'System',
-                  text: `Recent Errors:\n${consoleErrors.join('\n')}`,
-                  timestamp: new Date(),
-                  type: 'system'
-                };
-                setMessages(prev => [...prev, errorMessage]);
-                setConsoleErrors([]);
-              }}
+              onClick={resolveErrors}
               style={{
                 fontSize: '10px',
-                backgroundColor: '#ffcc00',
-                color: '#000',
+                backgroundColor: '#ff6b6b',
+                color: '#fff',
                 border: 'none',
                 borderRadius: '3px',
                 padding: '2px 6px',
                 marginTop: '4px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
-              title="Show and clear errors"
+              title="Automatically send errors to AI for resolution"
             >
-              View Errors
+              Resolve Error
             </button>
           )}
         </div>

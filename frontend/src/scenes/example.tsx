@@ -1,32 +1,22 @@
-import { makeScene2D } from '@motion-canvas/2d';
-import { Circle, Node } from '@motion-canvas/2d';
-import { createRef, all, waitFor, easeInOutExpo } from '@motion-canvas/core';
+import { Circle, makeScene2D } from '@motion-canvas/2d';
+import { createRef } from '@motion-canvas/core';
 
 export default makeScene2D(function* (view) {
   // Set the background color of the view
   view.fill('#000000');
 
   // Create a reference for the circle
-  const movingCircle = createRef<Circle>();
+  const circleRef = createRef<Circle>();
 
-  // Add the circle to the view
+  // Add a circle to the view
   view.add(
     <Circle
-      ref={movingCircle}
-      size={50}
-      fill={'#ff0000'}
-      x={() => 0}
-      y={() => 0}
+      ref={circleRef}
+      x={() => 0} // Centered horizontally
+      y={() => 0} // Centered vertically
+      width={() => 100} // Diameter of the circle
+      height={() => 100} // Diameter of the circle
+      fill={'#FF0000'} // Fill color red
     />
   );
-
-  // Animation loop to move the circle back and forth
-  while (true) {
-    // Move to the right
-    yield* movingCircle().position.x(200, 1, easeInOutExpo);
-    yield* waitFor(0.5);
-    // Move to the left
-    yield* movingCircle().position.x(-200, 1, easeInOutExpo);
-    yield* waitFor(0.5);
-  }
 });
