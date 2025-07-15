@@ -13,6 +13,8 @@ from agents.build_prompt import build_system_prompt_from_dirs_and_yaml
 from logging_config.logger import LOG
 from agents.output_models.code_output import CodeOutput
 from agents.output_models.graph_state import GraphState
+from langgraph.checkpoint.memory import MemorySaver
+
 from langgraph.graph import END, StateGraph, START
 from typing import Callable, Optional
 from agents.state_tracker import StateTracker
@@ -71,8 +73,9 @@ def build_graph(
     # Define the nodes
     tracker = StateTracker()
     tracker.create_new_state()
-    memory = tracker.memory
+    memory : Optional[MemorySaver] = tracker.memory
     thread = tracker.thread
+    LOG.info(f"building graph with memory: {memory} memory id {id(memory)} and thread: {thread}")
     workflow.add_node("generate", generate_handler)  # generation solution
     workflow.add_edge(START, "generate")
     workflow.add_edge("generate", END)
@@ -177,7 +180,7 @@ def generate_code_from_query(
             system_prompt, llm, prompt, output_model=CodeOutput,
         )
         LOG.info(f"Response code: {response}")
-        code_generated = response["code_generated"]
+        code_generated = response["code_output"]
         code_generated = code_generated.code_generated
         LOG.info(f"Code generation successful!")
     else:

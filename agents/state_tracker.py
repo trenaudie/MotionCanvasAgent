@@ -20,5 +20,5 @@ class StateTracker:
 
     def create_new_state(self):
         if self.thread is None:
-            self.thread = {"configurable": {"thread_id": uuid.uuid4()}}
+            self.thread = {"configurable": {"thread_id": str(uuid.uuid4())}}
         return self.thread
