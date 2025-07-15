@@ -149,11 +149,12 @@ def generate_code_using_langgraph(
     response = graph.invoke(
         {"messages": [("user", query)], "iterations": 0, "error": ""}, config=StateTracker().thread
     )
+    LOG.info(f"Graph response: {response}")
     return response
 
 
 def generate_code_from_query(
-    query: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False, 
+    prompt: str, output_file: Optional[os.PathLike] = None, dummy_code: bool = False, 
 ) -> str:
     """
     This function performs a code generation from a given conversation.
@@ -173,7 +174,7 @@ def generate_code_from_query(
         )
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         response = generate_code_using_langgraph(
-            system_prompt, llm, query, output_model=CodeOutput,
+            system_prompt, llm, prompt, output_model=CodeOutput,
         )
         LOG.info(f"Response code: {response}")
         code_generated = response["code_generated"]

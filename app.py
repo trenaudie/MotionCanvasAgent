@@ -10,7 +10,7 @@ load_dotenv()  # Load environment variables from .env
 from paths import OUTPUT_FILE
 from agents.call_llm import generate_code_from_query
 from ai_utils.openai_api import OpenAIModels
-
+from logging_config.logger import LOG
 
 
 MODEL = OpenAIModels.O4_MINI
@@ -25,7 +25,7 @@ def write_code_to_files():
     prompt = data.get('prompt')
     if not prompt:
         return jsonify({'error': 'Missing prompt'}), 400
-
+    LOG.info(f"sending prompt to langgraph: {prompt}")
     code_generated = generate_code_from_query(prompt, output_file=OUTPUT_FILE,dummy_code= False)
 
     return jsonify({'filename': str(OUTPUT_FILE.name)}),200
