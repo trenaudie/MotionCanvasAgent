@@ -7,7 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env
 # load config from .env or similar
-from paths import OUTPUT_FILE
+from project_paths import OUTPUT_FILE
 from agents.call_llm import generate_code_from_query
 from ai_utils.openai_api import OpenAIModels
 from logging_config.logger import LOG
@@ -23,11 +23,10 @@ def write_code_to_files():
     print(f'POST - WRITING CODE TO FILES')
     data = request.json or {}
     prompt = data.get('prompt')
+    LOG.info(f'received data from frontend: {data}')
     if not prompt:
         return jsonify({'error': 'Missing prompt'}), 400
-    LOG.info(f"sending prompt to langgraph: {prompt}")
     code_generated = generate_code_from_query(prompt, output_file=OUTPUT_FILE,dummy_code= False)
-
     return jsonify({'filename': str(OUTPUT_FILE.name)}),200
 
 # listen to frontend for response 

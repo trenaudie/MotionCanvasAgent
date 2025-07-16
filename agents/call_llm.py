@@ -94,7 +94,7 @@ def generate_code_using_langgraph(
         # Increment
         iterations = iterations + 1
         return {
-            "code_generated": code_solution,
+            "code_output": code_solution,
             "messages": messages,
             "iterations": iterations,
         }
@@ -104,7 +104,6 @@ def generate_code_using_langgraph(
     response = graph.invoke(
         user_input, config=StateTracker().get_runnable_config()
     )
-    LOG.info(f"Graph response: {response}")
     return response
 
 
@@ -131,9 +130,10 @@ def generate_code_from_query(
         response = generate_code_using_langgraph(
             system_prompt, llm, prompt, output_model=CodeOutput,
         )
-        LOG.info(f"Response code: {response}")
-        code_generated = response["code_output"]
-        code_generated = code_generated.code_generated
+        LOG.info(f"Response from generate_code_using_langgraph: {response}")
+        code_output = response["code_output"]
+        code_generated = code_output.code_generated
+        _ = code_output.reasoning
         LOG.info(f"Code generation successful!")
     else:
         DUMMY_CODE_FILE = (

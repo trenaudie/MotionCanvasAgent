@@ -149,7 +149,7 @@ export function ChatOverlay() {
   }, []);
 
   // Extract message sending logic into reusable function
-  const sendMessageToBackend = async (messageText: string, includeContext: boolean = true) => {
+  const sendMessageToBackend = async (messageText: string, includeContext: boolean = false) => {
     // Add user message to chat
     const userMessage: Message = {
       id: Date.now().toString(),
