@@ -19,53 +19,6 @@ from langgraph.graph import END, StateGraph, START
 from typing import Callable, Optional
 from agents.state_tracker import StateTracker
 
-def generate_code(
-    system_prompt: str,
-    llm: BaseChatModel,
-    query: str,
-    examples: List[BaseMessage] = [],
-    tools: Optional[List[Any]] = None,
-    output_model: Optional[Any] = None,
-) -> Any:
-    """
-    Generate code using few-shot prompting with LangChain.
-
-    Args:
-        system_prompt: The system prompt to use
-        examples: List of langchain_core.messages examples for few-shot prompting
-        llm: The language model to use
-        tools: Optional tools to bind to the LLM
-        query: The user query/prompt for code generation
-
-    Returns:
-        Generated code as a string
-    """
-    # Bind tools to LLM if provided
-    if tools:
-        llm_final = llm.bind_tools(tools)
-    if output_model:
-        llm_final = llm.with_structured_output(output_model, include_raw=False)
-    if not tools and not output_model:
-        llm_final = llm
-
-    # Create few-shot prompt template
-    few_shot_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            *examples,
-            ("human", f"{query}"),
-        ],
-        template_format="jinja2",
-    )
-
-    # Create the chain
-    chain = {"query": RunnablePassthrough()} | few_shot_prompt | llm_final
-
-    response = chain.invoke(query)
-
-    return response
-
-
 def build_graph(
     generate_handler: Callable,
 ):
@@ -100,7 +53,6 @@ def generate_code_using_langgraph(
         ],
         template_format="jinja2",
     )
-
     code_gen_chain = few_shot_prompt | llm.with_structured_output(output_model)
 
     def generate_handler(state: GraphState) -> Dict[str, Any]:
@@ -115,9 +67,8 @@ def generate_code_using_langgraph(
         """
 
         LOG.info("---GENERATING CODE SOLUTION---")
-
-        # State
-        messages = state["messages"]
+        current_state = StateTracker().get_current_state()
+        messages = current_state["messages"] + state["messages"]
         iterations = state["iterations"]
         error = state["error"]
 
@@ -130,9 +81,9 @@ def generate_code_using_langgraph(
                 )
             ]
 
-        # Solution
-        code_solution = code_gen_chain.invoke({"messages": messages}, config=StateTracker().thread)
-        LOG.info(f"Code generation successful! Output is:\n\n {code_solution}\n\n")
+        LOG.info(f'Starting code generation with num messages : {len(messages)}')
+        code_solution = code_gen_chain.invoke({"messages": messages}, config=StateTracker().get_runnable_config())
+        LOG.info(f'Code generation successful')
         messages += [
             (
                 "assistant",
@@ -148,9 +99,10 @@ def generate_code_using_langgraph(
             "iterations": iterations,
         }
 
-    graph = build_graph(generate_handler)
+    graph = build_graph(generate_handler) # it ok if it gets recompiled, just the thread needs to remain the same, and the memory object as well
+    user_input= GraphState(**{"messages": [("user", query)], "iterations": 0, "error": ""})
     response = graph.invoke(
-        {"messages": [("user", query)], "iterations": 0, "error": ""}, config=StateTracker().thread
+        user_input, config=StateTracker().get_runnable_config()
     )
     LOG.info(f"Graph response: {response}")
     return response
@@ -226,5 +178,4 @@ if __name__ == "__main__":
         output_model=CodeOutput,
     )
     print(response)
-# %%
 # %%

@@ -24,7 +24,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 import sys 
 parent_dir = "/home/bits/MotionCanvasAgent"
-print(f"Adding parent directory to sys.path: {parent_dir}")
+# adding the parent dir to path to fix imports. #TODO come back to this
 sys.path.insert(0, parent_dir)
 from logging_config.logger import LOG
 load_dotenv()
@@ -32,16 +32,10 @@ assert os.getenv("OPENAI_API_KEY") is not None, "OPENAI_API_KEY environment vari
 import git # For cloning the repository
 from project_paths import PROJECT_ROOT
 from ai_utils.count_tokens import count_openai_tokens
-NUM_DOCS_TO_KEEP = 4  # Number of docs to keep for processing
-
-# Initialize clear_memory in session state if it doesn't exist
-if "clear_memory_clicked" not in st.session_state:
-    st.session_state.clear_memory_clicked = False
-
-
+NUM_DOCS_TO_KEEP = 4  # Number of docs to keep for processing. Unused. #TODO come back to this
 
 @st.cache_data(show_spinner="Loading and processing documentation...")
-def load_and_process_docs(num_docs_to_keep : int = 5):
+def load_and_process_docs():
     LOG.info("Loading and processing documentation from langgraph repository...")
     repo_url = "https://github.com/langchain-ai/langgraph.git"
     target_dir = PROJECT_ROOT / "trenaudie" / "langgraph"
@@ -170,17 +164,18 @@ def build_openai_chain(model_name: str = "gpt-4o-mini"):
 # --- LangGraph Workflow ---
 concatenated_content = load_and_process_docs()
 
-@st.cache_data(show_spinner=False)
-def get_thread_id(regenerate: bool) -> str:
+def get_thread_id(regenerate: bool = False) -> str:
     """
     Get the thread ID for the current user session.
     This is a placeholder function that can be replaced with actual logic to retrieve or generate a thread ID.
     """
-    LOG.info(f'regenerate is {regenerate}')
-    thread_id = str(uuid.uuid4()) if regenerate else st.session_state.get("thread_id", str(uuid.uuid4()))
+    if regenerate:
+        thread_id = str(uuid.uuid4())
+        LOG.info(f"Regenerated thread ID: {thread_id}")
+    else:
+        thread_id = st.session_state.get("thread_id", str(uuid.uuid4()))
     st.session_state.thread_id = thread_id
     # Reset clear_memory_clicked after processing to ensure it only triggers once per click
-    st.session_state.clear_memory_clicked = False
     return thread_id
 
 def get_runnable_config() -> RunnableConfig:
@@ -189,7 +184,7 @@ def get_runnable_config() -> RunnableConfig:
     This is a placeholder function that can be replaced with actual logic to retrieve or generate a RunnableConfig.
     """
     # Pass the value from session state to get_thread_id
-    thread_id = get_thread_id(regenerate=st.session_state.clear_memory_clicked)
+    thread_id = get_thread_id(regenerate=False)
     return RunnableConfig(configurable={"thread_id": thread_id})
 def generate(state: GraphState):
     """
@@ -241,16 +236,12 @@ def generate(state: GraphState):
 # Initialize LangGraph workflow
 @st.cache_resource(show_spinner=True)
 def build_graph(thread_id: str):
-    st.warning(f'Compiling graph...')
-    LOG.info(f'compiling graph')
     workflow = StateGraph(GraphState)
     workflow.add_node("generate", generate)  # generation solution
     workflow.add_edge(START, "generate")
     workflow.add_edge("generate", END)
-    # app = workflow.compile(checkpointer=memory(thread_id=thread["configurable"]["thread_id"]))
-    
-    LOG.info(f'Compiling graph with MemorySaver')
-    app = workflow.compile(checkpointer=MemorySaver())
+    app = workflow.compile(checkpointer=MemorySaver() )
+    LOG.info(f'Compiling graph with MemorySaver (for caching, using thread_id={thread_id}) -> id is {id(app)}')
     return app
 
 # --- Streamlit UI ---
@@ -312,11 +303,8 @@ def _get_cached_solution(question: str, llm_choice: str):
     LOG.info(f'Starting the get cache solution')
     st.session_state.log_messages.append(f"Cache miss: Generating new solution for '{question}' with {llm_choice}.")
 
-    # Note: We don't need to set st.session_state.selected_llm here since
-    # the generate function doesn't actually use it - it uses build_openai_chain() directly
-    # messages = app.get_state(thread)
-    # LOG.info(f"Fetched messages using get_state: {len(messages)} total messages")
     if app.checkpointer is not None and isinstance(app.checkpointer, MemorySaver):
+        LOG.info(f"Fetching current state from checkpointer for thread_id={get_thread_id()}")
         checkpoint_tuple = app.checkpointer.get_tuple(get_runnable_config())
         if checkpoint_tuple is not None:
             current_state = checkpoint_tuple.checkpoint['channel_values']
@@ -369,12 +357,63 @@ if st.button("Generate Code Solution"):
 
 
 
-def update_clear_memory(val):
-    st.session_state.clear_memory_clicked = val
-st.button(
+def clear_memory():
+    LOG.info("Clearing memory...")
+    get_thread_id(regenerate=True)
+
+
+def display_states():
+    """
+    Displays the current thread ID, app ID, and the number of messages
+    in the current checkpoint state.
+    """
+    thread_id = get_thread_id(regenerate=False)
+    len_messages = "N/A" # Initialize to N/A
+
+    # Safely access checkpointer and its methods
+    current_state = None
+    if hasattr(app, 'checkpointer') and app.checkpointer:
+        try:
+            if isinstance(app.checkpointer, MemorySaver):
+                current_state = app.checkpointer.get_tuple(get_runnable_config())
+        except Exception as e:
+            LOG.error(f"Error getting checkpoint tuple: {e}")
+            st.error(f"Error accessing checkpoint: {e}")
+
+    if current_state and current_state.checkpoint and \
+       'channel_values' in current_state.checkpoint and \
+       'messages' in current_state.checkpoint['channel_values']:
+        len_messages = len(current_state.checkpoint['channel_values']['messages'])
+    else:
+        LOG.warning(f"No valid checkpoint or messages found for thread_id={thread_id}")
+    # Display information to Streamlit
+    # Also log to console for debugging purposes
+    # LOG.info(f"Displaying states: thread_id={thread_id}, app id={id(app)} num_messages={len_messages}")
+    return {
+        "thread_id": thread_id,
+        "app_id": id(app),
+        "num_messages": len_messages
+    }
+
+
+clear_memory_button = st.button(
     'Clear Memory',
-    on_click=update_clear_memory
+    on_click=clear_memory
 )
+
+if st.button("Display States and IDs", key="display_states_button"):
+    states_dict = display_states()
+    thread_id = states_dict.get("thread_id", "N/A")
+    app_id = states_dict.get("app_id", "N/A")
+    num_messages = states_dict.get("num_messages", "N/A")
+    st.write("---")
+    st.subheader("Application States")
+    st.write(f"**Thread ID:** `{thread_id}`")
+    st.write(f"**App Object ID:** `{id(app)}`")
+    st.write(f"**Number of Messages in Checkpoint:** `{num_messages}`")
+    st.write("---")
+
+
 
 
 if st.session_state.generated_solution:
@@ -397,3 +436,6 @@ with st.sidebar.expander("View Logs"):
 
 st.markdown("---")
 st.caption("Developed with LangChain, LangGraph, and Streamlit.")
+
+
+st.write('display_states_button', st.session_state.get('display_states_button', None))
