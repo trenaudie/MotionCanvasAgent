@@ -3,6 +3,8 @@ import uuid
 from langgraph.checkpoint.memory import MemorySaver
 from logging_config.logger import LOG
 from typing import Optional
+from langchain_core.runnables import RunnableConfig
+
 # singleton_state_tracker.py
 class StateTracker:
     _instance = None
@@ -20,5 +22,27 @@ class StateTracker:
 
     def create_new_state(self):
         if self.thread is None:
-            self.thread = {"configurable": {"thread_id": uuid.uuid4()}}
+            self.thread = {"configurable": {"thread_id": str(uuid.uuid4())}}
         return self.thread
+
+    def get_runnable_config(self) -> RunnableConfig:
+        """
+        Returns a RunnableConfig with the current thread.
+        """
+        if self.thread is None:
+            raise ValueError("Thread is not initialized.")
+        return RunnableConfig(configurable=self.thread['configurable'])
+    
+    def get_current_state(self) -> dict:
+        """
+        Returns the current state of the tracker.
+        """
+        if self.memory is None or self.thread is None:
+            self.create_new_state()
+            LOG.info(f'creating new state with memory id {id(self.memory)} and thread: {self.thread}')
+        checkpoint_tuple =  self.memory.get_tuple(self.get_runnable_config())
+
+        if checkpoint_tuple is None:
+            LOG.warning("No checkpoint found for the current runnable config.")
+            return {}
+        return checkpoint_tuple.checkpoint.get('channel_values', {})

@@ -1,29 +1,54 @@
-# logging_config.py
-import logging, sys
+import logging
+import sys
+import os
 from datetime import datetime
-from pathlib import Path
-def setup_logging(name=None, level=logging.INFO, logfile="log_debug"):
+from zoneinfo import ZoneInfo  # Python 3.9+
+
+class NYCFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=ZoneInfo("America/New_York"))
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat()
+
+    def format(self, record):
+        try:
+            cwd = os.getcwd()
+            record.pathname = os.path.relpath(record.pathname, start=cwd)
+        except Exception:
+            pass  # fallback to absolute if relpath fails
+        return super().format(record)
+
+def setup_logging(
+    name="MotionCanvasAgent",
+    level=logging.INFO,
+    logfile=True,
+    rewrite_logfile=True
+):
     logger = logging.getLogger(name)
+
     if logger.hasHandlers():
-        return logger
+        return logger  # Prevent duplicate handlers on multiple imports
+
     logger.setLevel(level)
-    fmt = logging.Formatter(
-        "%(asctime)s %(levelname)-5s %(name)s [%(pathname)s:%(lineno)d]: %(message)s",
+
+    formatter = NYCFormatter(
+        fmt="%(asctime)s %(levelname)-8s : %(pathname)s(%(lineno)d) %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
-    sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(fmt)
-    logger.addHandler(sh)
+
+    # StreamHandler (console)
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
     if logfile:
-        fh = logging.FileHandler(logfile, mode="a", encoding="utf-8")
-        fh.setFormatter(fmt)
-        logger.addHandler(fh)
+        log_mode = "w" if rewrite_logfile else "a"
+        file_handler = logging.FileHandler(f"{name}.log", mode=log_mode, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
     return logger
 
-Path('logs').mkdir(exist_ok=True)
-logfile = f"logs/debug_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-LOG = setup_logging(
-    name="debug",
-    level=logging.DEBUG,
-    logfile=logfile
-)
+# Export singleton logger
+LOG = setup_logging(level=logging.DEBUG)

@@ -4,7 +4,6 @@ import { createRef, all, createSignal, waitFor } from '@motion-canvas/core';
 export default makeScene2D(function* (view) {
   // Set the background color of the view
   view.fill('#000000');
-
   // Create refs for the school bus and text
   const schoolBus = createRef<Rect>();
   const busText = createRef<Txt>();
