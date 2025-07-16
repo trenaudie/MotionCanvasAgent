@@ -38,11 +38,11 @@ class StateTracker:
         Returns the current state of the tracker.
         """
         if self.memory is None or self.thread is None:
-            raise ValueError("Memory or thread is not initialized.")
+            self.create_new_state()
+            LOG.info(f'creating new state with memory id {id(self.memory)} and thread: {self.thread}')
         checkpoint_tuple =  self.memory.get_tuple(self.get_runnable_config())
 
         if checkpoint_tuple is None:
             LOG.warning("No checkpoint found for the current runnable config.")
             return {}
-        LOG.info(f'checkpoint tuple is LEN {len(checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", []))} for config {self.get_runnable_config()} and memory id {id(self.memory)}')
         return checkpoint_tuple.checkpoint.get('channel_values', {})
