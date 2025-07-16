@@ -1,3 +1,6 @@
+"""
+This memory experiment tries out removing the MemorySaver object and seeing what happens when we do multiple graph.invoke calls
+"""
 import streamlit as st
 import os
 import getpass
@@ -28,7 +31,7 @@ import git # For cloning the repository
 from project_paths import PROJECT_ROOT
 
 @st.cache_data(show_spinner="Loading and processing documentation...")
-def load_and_process_docs():
+def load_and_process_docs(num_docs_to_keep : int = 2):
     LOG.info("Loading and processing documentation from langgraph repository...")
     repo_url = "https://github.com/langchain-ai/langgraph.git"
     target_dir = PROJECT_ROOT / "trenaudie" / "langgraph"
@@ -59,7 +62,7 @@ def load_and_process_docs():
         docs_to_keep = [
             doc for doc in docs
             if any(k in doc.metadata["source"] for k in ["chatbot", "multi-agent-rag", "ref"])
-        ][:3]
+        ][:num_docs_to_keep]
 
         # Process docs to extract only code content from notebooks
         processed_docs = []
@@ -134,7 +137,6 @@ def build_openai_chain(model_name: str = "gpt-4o-mini"):
 
 # --- LangGraph Workflow ---
 concatenated_content = load_and_process_docs()
-LOG.info(f'concatenated content {concatenated_content}')
 thread = {'configurable': {'thread_id': "1"}}
 
 
@@ -154,8 +156,8 @@ def generate(state: GraphState):
     # State
     messages = state["messages"]
     st.session_state.log_messages.append(f"Current messages in state: {messages}")
-    iterations = state["iterations"]
-    error = state["error"]
+    iterations = state.get('iterations',0)
+    error = state.get('error', '')
 
     code_gen_chain = build_openai_chain() # dont give the option
 
@@ -179,17 +181,16 @@ def generate(state: GraphState):
 
     # Increment
     iterations = iterations + 1
-    assert isinstance(code_solution, code)
     return {"generation": code_solution, "messages": messages, "iterations": iterations, "error": "no"}
 
 
-@st.cache_resource(show_spinner=True)
-def memory(thread_id: dict):
-    st.write("Initializing memory for the LangGraph workflow...")
-    from langgraph.checkpoint.memory import MemorySaver
-    memory = MemorySaver()
-    LOG.info(f"Memory initialized with thread ID: {thread_id}")
-    return memory
+# @st.cache_resource(show_spinner=True)
+# def memory(thread_id: dict):
+#     st.write("Initializing memory for the LangGraph workflow...")
+#     from langgraph.checkpoint.memory import MemorySaver
+#     memory = MemorySaver()
+#     LOG.info(f"Memory initialized with thread ID: {thread_id}")
+#     return memory
 
 
 
@@ -201,8 +202,8 @@ def build_graph(thread: dict):
     workflow.add_node("generate", generate)  # generation solution
     workflow.add_edge(START, "generate")
     workflow.add_edge("generate", END)
-    app = workflow.compile(checkpointer=memory(thread_id=thread["configurable"]["thread_id"]))
-    # app = workflow.compile(checkpointer=None)
+    # app = workflow.compile(checkpointer=memory(thread_id=thread["configurable"]["thread_id"]))
+    app = workflow.compile(checkpointer=None)
     return app
 
 # --- Streamlit UI ---
@@ -256,23 +257,16 @@ def _get_cached_solution(question: str, llm_choice: str):
 
     # Note: We don't need to set st.session_state.selected_llm here since
     # the generate function doesn't actually use it - it uses build_openai_chain() directly
-    current_state = app.get_state(config=thread)
-    if current_state:
-        LOG.info(f"Current state found: {current_state}")
-        current_state_messages = current_state.values.get('messages', [])
-        LOG.info(f"Current messages in state: {current_state_messages}")
-    else:
-        current_state_messages = []
     current_state = {
-        "messages": current_state_messages + [("user", question)],
-        "iterations": 0,
-        "error": "",
-        "generation": code(reasoning="", code="") # Initialize generation
+        "messages": [("user", question)],
     }
-    solution = app.invoke(current_state, config=thread)
-    LOG.info(f"Graph response: {solution}")
+    LOG.info(f"Graph input: num messages {len(current_state['messages'])}")
+    current_state = app.invoke(current_state, config=thread)
+    LOG.info(f"Graph response: num messages {len(current_state['messages'])}")
+    current_state = app.invoke(current_state, config=thread)
+    LOG.info(f"Graph response 2: num messages {len(current_state['messages'])}")
     # Return a serializable dictionary instead of the BaseModel instance
-    generation = solution["generation"]
+    generation = current_state["generation"]
     return {
         "reasoning": generation.reasoning,
         "code": generation.code
