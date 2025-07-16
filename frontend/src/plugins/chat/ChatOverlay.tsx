@@ -9,9 +9,20 @@ interface Message {
   type: 'user' | 'system';
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  lastMessage: string;
+  timestamp: Date;
+  messageCount: number;
+}
+
 export function ChatOverlay() {
   const [isVisible, setIsVisible] = useState(false);
+  const [showChatList, setShowChatList] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string>('');
   const [username, setUsername] = useState('Anonymous');
   const [currentMessage, setCurrentMessage] = useState('');
   const [isEditingUsername, setIsEditingUsername] = useState(false);
@@ -25,6 +36,10 @@ export function ChatOverlay() {
     setIsVisible(!isVisible);
   };
 
+  const toggleChatList = () => {
+    setShowChatList(!showChatList);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -32,6 +47,61 @@ export function ChatOverlay() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Create a new chat session
+  const createNewChat = () => {
+    const newChatId = `chat_${Date.now()}`;
+    setCurrentChatId(newChatId);
+    setMessages([]);
+    setShowChatList(false);
+  };
+
+  // Load a chat session
+  const loadChatSession = (chatId: string) => {
+    // In a real implementation, you'd load messages from storage
+    // For now, we'll just switch to an empty chat
+    setCurrentChatId(chatId);
+    setMessages([]);
+    setShowChatList(false);
+  };
+
+  // Update chat session when messages change
+  useEffect(() => {
+    if (messages.length > 0 && currentChatId) {
+      const lastUserMessage = messages.filter(m => m.type === 'user').pop();
+      const title = lastUserMessage ? 
+        (lastUserMessage.text.length > 30 ? 
+          lastUserMessage.text.substring(0, 30) + '...' : 
+          lastUserMessage.text) : 
+        'New Chat';
+      
+      setChatSessions(prev => {
+        const existingIndex = prev.findIndex(session => session.id === currentChatId);
+        const updatedSession: ChatSession = {
+          id: currentChatId,
+          title,
+          lastMessage: messages[messages.length - 1].text,
+          timestamp: new Date(),
+          messageCount: messages.length
+        };
+        
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = updatedSession;
+          return updated;
+        } else {
+          return [updatedSession, ...prev];
+        }
+      });
+    }
+  }, [messages, currentChatId]);
+
+  // Initialize first chat if none exists
+  useEffect(() => {
+    if (!currentChatId) {
+      createNewChat();
+    }
+  }, []);
 
   // Fetch example code from file
   const fetchExampleCode = async (): Promise<string> => {
@@ -164,7 +234,7 @@ export function ChatOverlay() {
     const statusMessage: Message = {
       id: (Date.now() + 1).toString(),
       username: 'System',
-      text: 'Fetching context and sending message to server...',
+      text: includeContext ? 'Fetching context and sending message to server...' : 'Sending message to server...',
       timestamp: new Date(),
       type: 'system'
     };
@@ -352,7 +422,7 @@ export function ChatOverlay() {
       }
     }
   };
-
+  
   const sendMessage = async () => {
     if (!currentMessage.trim()) return;
     
@@ -400,6 +470,18 @@ Please provide the corrected code that resolves these errors.`;
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const formatDate = (date: Date) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    if (messageDate.getTime() === today.getTime()) {
+      return formatTime(date);
+    } else {
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+  };
+
   const updateUsername = (newUsername: string) => {
     if (newUsername.trim() && newUsername !== username) {
       setUsername(newUsername.trim());
@@ -414,16 +496,13 @@ Please provide the corrected code that resolves these errors.`;
     // Clear console errors
     setConsoleErrors([]);
     
-    // Default Motion Canvas code
-    const defaultCode = `import { makeScene2D } from '@motion-canvas/2d';
-
-export default makeScene2D(function* (view) {
-  view.fill('#000000'); 
-});`;
+    // Default Motion Canvas code - exact format as requested
+    const defaultCode = `import {makeScene2D} from '@motion-canvas/2d';
+export default makeScene2D(function* (view) { view.fill('#000000'); });`;
 
     try {
       // Try to write directly to the file
-      const response = await fetch('/src/scenes/example.tsx', {
+      const response = await fetch('/frontend/src/scenes/example.tsx', {
         method: 'PUT',
         headers: {
           'Content-Type': 'text/plain',
@@ -445,28 +524,63 @@ export default makeScene2D(function* (view) {
         };
         setMessages([successMessage]);
       } else {
-        // If direct write fails, try alternative approach
+        // If direct write fails, try alternative approach using a different method
         throw new Error('Direct file write not supported');
       }
     } catch (error) {
-      console.warn('Direct file write failed, trying alternative approach:', error);
+      console.warn('Direct file write failed, trying backend approach:', error);
       
-      // Alternative: Try using File System API if available
+      // Try to use the backend to write the file if available
       try {
-        if ('showSaveFilePicker' in window) {
-          // This would require user interaction, so let's try a different approach
-          throw new Error('File System API requires user interaction');
+        // Get backend type
+        let backend = '';
+        if (import.meta.env.BACKEND) {
+          backend = import.meta.env.BACKEND;
         } else {
-          throw new Error('File System API not available');
+          backend = 'FLASK';
         }
-      } catch (fsError) {
+
+        if (backend === 'FLASK') {
+          // Try Flask backend to write the file
+          const response = await fetch('http://localhost:8000/write_code', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              prompt: `Please replace the entire content of example.tsx with exactly this code:
+
+${defaultCode}
+
+This is a reset request - overwrite everything in the file with just this code.`
+            })
+          });
+
+          if (response.ok) {
+            setExampleCode(defaultCode);
+            const successMessage: Message = {
+              id: Date.now().toString(),
+              username: 'System',
+              text: 'Chat cleared and example.tsx reset via backend.',
+              timestamp: new Date(),
+              type: 'system'
+            };
+            setMessages([successMessage]);
+            return;
+          }
+        }
+        
+        // If backend fails or not available, fall back to manual instruction
+        throw new Error('Backend write failed');
+        
+      } catch (backendError) {
         // Final fallback: Update local state and inform user
         setExampleCode(defaultCode);
         
         const warningMessage: Message = {
           id: Date.now().toString(),
           username: 'System',
-          text: `Chat cleared and context reset. Please manually replace the content of example.tsx with:
+          text: `Chat cleared and context reset. Please manually replace the entire content of example.tsx with:
 
 \`\`\`typescript
 ${defaultCode}
@@ -511,6 +625,183 @@ ${defaultCode}
     );
   }
 
+  // Chat List Screen
+  if (showChatList) {
+    return (
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          width: '350px',
+          height: '700px',
+          backgroundColor: '#1e1e1e',
+          color: '#ffffff',
+          borderRadius: '12px',
+          border: '1px solid #444',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          zIndex: 9999
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
+        onKeyPress={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '16px',
+          borderBottom: '1px solid #444',
+          backgroundColor: '#2d2d2d',
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+              Chat History
+            </div>
+            <div style={{ fontSize: '12px', color: '#888' }}>
+              {chatSessions.length} conversation{chatSessions.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={toggleChatList}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                fontSize: '16px',
+                cursor: 'pointer',
+                padding: '4px'
+              }}
+              title="Back to Chat"
+            >
+              ← 
+            </button>
+            <button
+              onClick={toggleChat}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                fontSize: '18px',
+                cursor: 'pointer',
+                padding: '4px'
+              }}
+              title="Close Chat"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* New Chat Button */}
+        <div style={{ padding: '12px', borderBottom: '1px solid #444' }}>
+          <button
+            onClick={createNewChat}
+            style={{
+              width: '100%',
+              padding: '12px',
+              backgroundColor: '#007acc',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            + New Chat
+          </button>
+        </div>
+
+        {/* Chat Sessions List */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '8px'
+        }}>
+          {chatSessions.length === 0 ? (
+            <div style={{
+              padding: '20px',
+              textAlign: 'center',
+              color: '#888',
+              fontSize: '14px'
+            }}>
+              No chat history yet.<br />
+              Start a new conversation!
+            </div>
+          ) : (
+            chatSessions.map((session) => (
+              <div
+                key={session.id}
+                onClick={() => loadChatSession(session.id)}
+                style={{
+                  padding: '12px',
+                  marginBottom: '8px',
+                  backgroundColor: session.id === currentChatId ? '#333' : '#2a2a2a',
+                  border: session.id === currentChatId ? '1px solid #007acc' : '1px solid #444',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (session.id !== currentChatId) {
+                    (e.target as HTMLElement).style.backgroundColor = '#333';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (session.id !== currentChatId) {
+                    (e.target as HTMLElement).style.backgroundColor = '#2a2a2a';
+                  }
+                }}
+              >
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginBottom: '4px',
+                  color: '#fff'
+                }}>
+                  {session.title}
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#888',
+                  marginBottom: '4px',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {session.lastMessage}
+                </div>
+                <div style={{
+                  fontSize: '10px',
+                  color: '#666',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>{formatDate(session.timestamp)}</span>
+                  <span>{session.messageCount} message{session.messageCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Main Chat Screen
   return (
     <div 
       style={{
@@ -550,7 +841,6 @@ ${defaultCode}
           </div>
           <div style={{ fontSize: '12px', color: '#ffffff', backgroundColor: '#007acc', padding: '4px 8px', borderRadius: '4px' }}>
             Describe your motion object/scene <br /> 
-            {exampleCode ? '✓ Context loaded' : '⚠ No context'} 
             {consoleErrors.length > 0 && (
               <span style={{ color: '#ffcc00' }}> • {consoleErrors.length} error(s)</span>
             )}
@@ -590,22 +880,40 @@ ${defaultCode}
           >
             ✕
           </button>
-          <button
-            onClick={clearAllChats}
-            style={{
-              background: 'none',
-              border: '1px solid #666',
-              color: '#ff6b6b',
-              fontSize: '10px',
-              cursor: 'pointer',
-              padding: '4px 6px',
-              borderRadius: '4px',
-              fontWeight: 'bold'
-            }}
-            title="Clear all chats and reset example.tsx"
-          >
-            CLEAR ALL
-          </button>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={toggleChatList}
+              style={{
+                background: 'none',
+                border: '1px solid #666',
+                color: '#007acc',
+                fontSize: '10px',
+                cursor: 'pointer',
+                padding: '4px 6px',
+                borderRadius: '4px',
+                fontWeight: 'bold'
+              }}
+              title="View chat history"
+            >
+              ☰ LIST
+            </button>
+            <button
+              onClick={clearAllChats}
+              style={{
+                background: 'none',
+                border: '1px solid #666',
+                color: '#ff6b6b',
+                fontSize: '10px',
+                cursor: 'pointer',
+                padding: '4px 6px',
+                borderRadius: '4px',
+                fontWeight: 'bold'
+              }}
+              title="Clear all chats and reset example.tsx"
+            >
+              CLEAR ALL
+            </button>
+          </div>
         </div>
       </div>
 
