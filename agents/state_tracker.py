@@ -40,6 +40,9 @@ class StateTracker:
         if self.memory is None or self.thread is None:
             raise ValueError("Memory or thread is not initialized.")
         checkpoint_tuple =  self.memory.get_tuple(self.get_runnable_config())
+
         if checkpoint_tuple is None:
+            LOG.warning("No checkpoint found for the current runnable config.")
             return {}
+        LOG.info(f'checkpoint tuple is LEN {len(checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", []))} for config {self.get_runnable_config()} and memory id {id(self.memory)}')
         return checkpoint_tuple.checkpoint.get('channel_values', {})

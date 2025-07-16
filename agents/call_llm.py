@@ -32,7 +32,9 @@ def build_graph(
     workflow.add_node("generate", generate_handler)  # generation solution
     workflow.add_edge(START, "generate")
     workflow.add_edge("generate", END)
+    LOG.info(f'before compilation, current state has {len(tracker.get_current_state().get("messages", []))} messages')
     graph = workflow.compile(checkpointer=memory)
+    LOG.info(f'after compilation, current state has {len(tracker.get_current_state().get("messages", []))} messages')
     return graph.with_config(thread=thread)
 
 
