@@ -5,3 +5,4 @@ logs
 uv.lock
 .vscode
 trenaudie
+.vscode/settings.json
