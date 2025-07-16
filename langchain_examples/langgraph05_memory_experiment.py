@@ -1,5 +1,7 @@
 """
-This memory experiment tries out removing the MemorySaver object and seeing what happens when we do multiple graph.invoke calls
+This memory experiment tries out removing the MemorySaver object and seeing what happens when we do multiple graph.invoke calls.
+- two successive graph invoke calls, same thread id -> message list is transferred
+- two successive graph invoke calls, but in different function calls. Graph object is the same and config object the same. What happens?
 """
 import streamlit as st
 import os

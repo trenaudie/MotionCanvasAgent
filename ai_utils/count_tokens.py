@@ -4,7 +4,7 @@ try:
 except ImportError:
     raise ImportError("Please install tiktoken: pip install tiktoken")
 
-def count_openai_tokens(text, model="gpt-4.1"):
+def count_openai_tokens(text, model="gpt-4o-mini"):
     """
     Count the number of tokens in a string for a given OpenAI model.
     """
