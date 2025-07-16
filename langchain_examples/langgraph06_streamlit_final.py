@@ -3,6 +3,7 @@ This memory experiment tries out removing the MemorySaver object and seeing what
 """
 import streamlit as st
 import os
+import uuid
 import getpass
 from bs4 import BeautifulSoup as Soup
 from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
@@ -32,6 +33,13 @@ import git # For cloning the repository
 from project_paths import PROJECT_ROOT
 from ai_utils.count_tokens import count_openai_tokens
 NUM_DOCS_TO_KEEP = 4  # Number of docs to keep for processing
+
+# Initialize clear_memory in session state if it doesn't exist
+if "clear_memory_clicked" not in st.session_state:
+    st.session_state.clear_memory_clicked = False
+
+
+
 @st.cache_data(show_spinner="Loading and processing documentation...")
 def load_and_process_docs(num_docs_to_keep : int = 5):
     LOG.info("Loading and processing documentation from langgraph repository...")
@@ -161,10 +169,28 @@ def build_openai_chain(model_name: str = "gpt-4o-mini"):
 
 # --- LangGraph Workflow ---
 concatenated_content = load_and_process_docs()
-thread = {'configurable': {'thread_id': "1"}}
 
+@st.cache_data(show_spinner=False)
+def get_thread_id(regenerate: bool) -> str:
+    """
+    Get the thread ID for the current user session.
+    This is a placeholder function that can be replaced with actual logic to retrieve or generate a thread ID.
+    """
+    LOG.info(f'regenerate is {regenerate}')
+    thread_id = str(uuid.uuid4()) if regenerate else st.session_state.get("thread_id", str(uuid.uuid4()))
+    st.session_state.thread_id = thread_id
+    # Reset clear_memory_clicked after processing to ensure it only triggers once per click
+    st.session_state.clear_memory_clicked = False
+    return thread_id
 
-
+def get_runnable_config() -> RunnableConfig:
+    """
+    Get the RunnableConfig for the current thread.
+    This is a placeholder function that can be replaced with actual logic to retrieve or generate a RunnableConfig.
+    """
+    # Pass the value from session state to get_thread_id
+    thread_id = get_thread_id(regenerate=st.session_state.clear_memory_clicked)
+    return RunnableConfig(configurable={"thread_id": thread_id})
 def generate(state: GraphState):
     """
     Generate a code solution
@@ -187,7 +213,7 @@ def generate(state: GraphState):
 
     try:
         code_solution= code_gen_chain.invoke(
-            {"context": concatenated_content, "messages": messages}, config =RunnableConfig(configurable = thread["configurable"])
+            {"context": concatenated_content, "messages": messages}, config =get_runnable_config()
         )
     except Exception as e:
         st.session_state.log_messages.append(f"Error during code generation: {e}")
@@ -209,14 +235,6 @@ def generate(state: GraphState):
     iterations = iterations + 1
     return {"generation": code_solution, "messages": messages, "iterations": iterations, "error": "no"}
 
-
-# @st.cache_resource(show_spinner=True)
-# def memory(thread_id: dict):
-#     st.write("Initializing memory for the LangGraph workflow...")
-#     from langgraph.checkpoint.memory import MemorySaver
-#     memory = MemorySaver()
-#     LOG.info(f"Memory initialized with thread ID: {thread_id}")
-#     return memory
 
 
 
@@ -271,7 +289,17 @@ user_question = st.text_area(
     height=100,
     placeholder="e.g., How can I directly pass a string to a runnable and use it to construct the input needed for my prompt?"
 )
-app = build_graph(str(thread['configurable']['thread_id']))
+
+
+config = get_runnable_config()
+configurable = config.get("configurable", {})
+assert isinstance(configurable, dict) and configurable.get('thread_id') is not None, \
+    "RunnableConfig is not properly configured. Ensure get_runnable_config() returns a valid RunnableConfig."
+thread_id: str = configurable.get('thread_id', '') 
+assert isinstance(thread_id, str) and thread_id, "Thread ID must be a non-empty string."
+app = build_graph(thread_id)
+
+
 
 # --- Cached Function for Code Generation ---
 @st.cache_data(show_spinner=True) # Spinner is handled outside
@@ -289,7 +317,7 @@ def _get_cached_solution(question: str, llm_choice: str):
     # messages = app.get_state(thread)
     # LOG.info(f"Fetched messages using get_state: {len(messages)} total messages")
     if app.checkpointer is not None and isinstance(app.checkpointer, MemorySaver):
-        checkpoint_tuple = app.checkpointer.get_tuple(RunnableConfig(configurable=thread["configurable"]))
+        checkpoint_tuple = app.checkpointer.get_tuple(get_runnable_config())
         if checkpoint_tuple is not None:
             current_state = checkpoint_tuple.checkpoint['channel_values']
         else:
@@ -309,8 +337,8 @@ def _get_cached_solution(question: str, llm_choice: str):
     #     "messages": [("user", question)],
     # }
     LOG.info(f"Graph input: num messages {len(current_state['messages'])}")
-    LOG.info(f'app id {id(app)} and thread id {thread["configurable"]["thread_id"]}')
-    current_state = app.invoke(GraphState(**current_state), config=RunnableConfig(configurable=thread["configurable"]))
+    LOG.info(f'app id {id(app)} and thread id {get_thread_id()}')
+    current_state = app.invoke(GraphState(**current_state), config=get_runnable_config())
     LOG.info(f"Graph response acquired ! Num messages: {len(current_state['messages'])}")
     # Return a serializable dictionary instead of the BaseModel instance
     generation = current_state["generation"]
@@ -338,8 +366,15 @@ if st.button("Generate Code Solution"):
                 except Exception as e:
                     st.error(f"An error occurred during generation: {e}")
                     st.session_state.log_messages.append(f"Error: {e}")
-                    st.session_state.generated_solution = None
-                    raise e
+
+
+
+def update_clear_memory(val):
+    st.session_state.clear_memory_clicked = val
+st.button(
+    'Clear Memory',
+    on_click=update_clear_memory
+)
 
 
 if st.session_state.generated_solution:
