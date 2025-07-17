@@ -1,5 +1,22 @@
 import {makeProject} from '@motion-canvas/core';
-import example from './scenes/example?scene';
+
+// Dynamic import wrapper to catch errors
+async function loadExampleScene() {
+  console.log('Loading example scene...');
+  try {
+    const module = await import('./scenes/example?scene');
+    return module.default;
+  } catch (error) {
+    console.error('Error importing example scene:', error);
+    // Return a fallback scene
+    return function* (view) {
+      view.fill('#ff0000'); // Red background to indicate error
+      yield;
+    };
+  }
+}
+
+const example = await loadExampleScene();
 
 // Initialize chat integration
 import { getChatInstance } from './plugins/chat/ChatIntegration';

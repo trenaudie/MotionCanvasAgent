@@ -9,6 +9,16 @@ interface Message {
   type: 'user' | 'system';
 }
 
+interface MessagePayload {
+  message: string;
+  includeContext?: boolean;
+  errorStatus?: 'none' | 'error' | 'warning';
+  errorDetails?: string[];
+  metadata?: {
+    [key: string]: any;
+  };
+}
+
 interface ChatSession {
   id: string;
   title: string;
@@ -68,6 +78,7 @@ export function ChatOverlay() {
   // Update chat session when messages change
   useEffect(() => {
     if (messages.length > 0 && currentChatId) {
+      console.log(`number of messages is now ${messages.length}`);
       const lastUserMessage = messages.filter(m => m.type === 'user').pop();
       const title = lastUserMessage ? 
         (lastUserMessage.text.length > 30 ? 
@@ -156,7 +167,8 @@ export function ChatOverlay() {
           return newErrors;
         });
       }
-      
+      // log console error to console
+      console.warn('Captured Console Error:', errorMessage);
       // Call original console.error
       originalConsoleError.apply(console, args);
     };
@@ -219,8 +231,10 @@ export function ChatOverlay() {
   }, []);
 
   // Extract message sending logic into reusable function
-  const sendMessageToBackend = async (messageText: string, includeContext: boolean = false) => {
+  const sendMessageToBackend = async (payload: MessagePayload) => {
+    const { message: messageText, includeContext = false, errorStatus = 'none', errorDetails = [], metadata = {} } = payload;
     // Add user message to chat
+
     const userMessage: Message = {
       id: Date.now().toString(),
       username,
@@ -264,11 +278,16 @@ export function ChatOverlay() {
       contextualMessage += `Recent Console Errors/Warnings:\n\`\`\`\n${consoleErrors.join('\n')}\n\`\`\`\n\n`;
     }
     
+    // Add error details from payload if provided
+    if (errorDetails.length > 0) {
+      contextualMessage += `Error Details (${errorStatus}):\n\`\`\`\n${errorDetails.join('\n')}\n\`\`\`\n\n`;
+    }
+    
     // Add user request
     contextualMessage += `User request: ${messageText}`;
     
     // If no context, just use the message
-    if (!includeContext || (!contextCode && consoleErrors.length === 0)) {
+    if (!includeContext || (!contextCode && consoleErrors.length === 0 && errorDetails.length === 0)) {
       contextualMessage = messageText;
     }
 
@@ -398,6 +417,7 @@ export function ChatOverlay() {
           };
           setMessages(prev => [...prev, successMessage]);
         } else {
+          console.log(`console errors are ${consoleErrors}`);
           const errorMessage: Message = {
             id: (Date.now() + 3).toString(),
             username: 'System',
@@ -414,7 +434,7 @@ export function ChatOverlay() {
         const errorMessage: Message = {
           id: (Date.now() + 4).toString(),
           username: 'System',
-          text: 'Error sending message. Is the server running on localhost:8000?',
+          text: `Error sending message. ${error instanceof Error ? error.message : 'Unknown error'}`,
           timestamp: new Date(),
           type: 'system'
         };
@@ -429,7 +449,7 @@ export function ChatOverlay() {
     const messageText = currentMessage.trim();
     setCurrentMessage(''); // Clear input immediately
     
-    await sendMessageToBackend(messageText);
+    await sendMessageToBackend({ message: messageText });
   };
 
   const resolveErrors = async () => {
@@ -452,7 +472,12 @@ Please provide the corrected code that resolves these errors.`;
     setConsoleErrors([]);
 
     // Send the error resolution request
-    await sendMessageToBackend(errorResolutionMessage, false); // Don't include context again since we're manually providing it
+    await sendMessageToBackend({
+      message: errorResolutionMessage,
+      includeContext: false,
+      errorStatus: 'error',
+      errorDetails: consoleErrors
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {

@@ -1,53 +1,45 @@
-import { Circle, Rect, Txt, makeScene2D } from '@motion-canvas/2d';
-import { createRef, all, createSignal, waitFor } from '@motion-canvas/core';
+import { Rect, makeScene2D } from '@motion-canvas/2d';
+import { createRef, all, createSignal, waitFor, tween } from '@motion-canvas/core';
 
 export default makeScene2D(function* (view) {
   // Set the background color of the view
   view.fill('#000000');
-  // Create refs for the school bus and text
-  const schoolBus = createRef<Rect>();
-  const busText = createRef<Txt>();
 
-  // Create signals for the bus's position
-  const busPositionX = createSignal(0);
-  const busPositionY = createSignal(0);
+  // Create a reference for the Eiffel Tower
+  const eiffelTower = createRef<Rect>();
 
-  // Add the school bus (using a rectangle as a placeholder)
+  // Create signals for the Eiffel Tower's position and scale
+  const towerPositionX = createSignal(-view.width() / 2 + 100); // Position it on the left side
+  const towerPositionY = createSignal(0);
+  const towerScale = createSignal(1);
+
+  // Add the Eiffel Tower (using a rectangle as a placeholder)
   view.add(
     <Rect
-      ref={schoolBus}
-      x={busPositionX}
-      y={busPositionY}
-      width={200}
-      height={50}
-      fill={'#FFD700'} // Yellow color for the school bus
+      ref={eiffelTower}
+      x={towerPositionX}
+      y={towerPositionY}
+      width={50}
+      height={200}
+      fill={'#FFD700'} // Yellow color for the Eiffel Tower
     />
   );
 
-  // Add text below the bus
-  view.add(
-    <Txt
-      ref={busText}
-      x={busPositionX}
-      y={() => busPositionY() - 40} // Position text below the bus
-      text={'🚌'} // School bus emoji
-      fontSize={100}
-      fill={'#FFFFFF'} // White color for the text
-    />
-  );
-
-  // Animate the school bus's position
+  // Animate the Eiffel Tower's rotation and scaling
   yield* all(
-    busPositionX(200, 2), // Move to the right
-    busPositionY(100, 2)  // Move down
+    tween(2, (value) => {
+      towerScale(value);
+      eiffelTower().rotation(value * 360);
+    }),
+    towerPositionY(100, 2) // Move up while rotating
   );
 
   // Wait for a moment
   yield* waitFor(1);
 
-  // Reset position
+  // Shrink the Eiffel Tower to zero
   yield* all(
-    busPositionX(0, 2), // Move back to the left
-    busPositionY(0, 2)  // Move back up
+    towerScale(0, 1), // Scale down to zero
+    towerPositionY(0, 1) // Reset position to original
   );
 });
